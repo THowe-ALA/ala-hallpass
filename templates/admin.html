@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Admin — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Admin Dashboard</h4>
+
+{# ── Filters ── #}
+<form method="GET" class="row g-2 mb-4 no-print">
+  <div class="col-auto">
+    <input type="date" name="date" class="form-control form-control-sm" value="{{ date_str }}">
+  </div>
+  <div class="col-auto">
+    <input type="text" name="student" class="form-control form-control-sm"
+           placeholder="Student name" value="{{ student_q }}">
+  </div>
+  <div class="col-auto">
+    <select name="period" class="form-select form-select-sm">
+      <option value="">All periods</option>
+      {% for p in periods %}
+      <option value="{{ p }}" {{ 'selected' if p == period_f }}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary">Filter</button>
+    <a href="{{ url_for('main.admin') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+  </div>
+</form>
+
+{# ── Frequent flyers ── #}
+{% if frequent %}
+<div class="card border-danger mb-4">
+  <div class="card-header bg-danger text-white fw-bold">
+    ⚠️ Frequent Flyers — {{ date_str }}
+  </div>
+  <div class="table-responsive">
+  <table class="table table-sm mb-0">
+    <thead><tr><th>Student</th><th>Grade</th><th>Passes</th></tr></thead>
+    <tbody>
+      {% for student, cnt in frequent %}
+      <tr>
+        <td>{{ student.full_name }}</td>
+        <td>{{ student.grade }}</td>
+        <td><span class="badge bg-danger">{{ cnt }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Pass log ── #}
+<div class="card shadow-sm">
+  <div class="card-header fw-semibold">
+    Pass Log — {{ passes | length }} record(s) for {{ date_str }}
+  </div>
+  <div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th>Time Out</th>
+        <th>Time In</th>
+        <th>Duration</th>
+        <th>Student</th>
+        <th class="d-none d-md-table-cell">Grade</th>
+        <th>Type</th>
+        <th class="d-none d-lg-table-cell">Period</th>
+        <th class="d-none d-lg-table-cell">Teacher</th>
+        <th class="d-none d-lg-table-cell">Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in passes %}
+      <tr>
+        <td>{{ p.time_out.strftime('%I:%M %p') if p.time_out else '—' }}</td>
+        <td>{{ p.time_in.strftime('%I:%M %p') if p.time_in else '…' }}</td>
+        <td>
+          {% if p.duration_minutes is not none %}
+            {{ p.duration_minutes }} min
+          {% elif p.time_out %}
+            <em class="text-muted">out</em>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ p.student.full_name }}</td>
+        <td class="d-none d-md-table-cell">{{ p.student.grade }}</td>
+        <td>{{ pass_labels.get(p.pass_type, p.pass_type) }}</td>
+        <td class="d-none d-lg-table-cell">{{ p.period }}</td>
+        <td class="d-none d-lg-table-cell">{{ p.teacher.name }}</td>
+        <td class="d-none d-lg-table-cell small text-muted">
+          {% if p.extra_data %}
+            {% if p.extra_data.get('destination_teacher') %}
+              → {{ p.extra_data.destination_teacher }}
+            {% endif %}
+            {% if p.extra_data.get('symptoms') %}
+              {{ p.extra_data.symptoms | join(', ') }}
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not passes %}
+      <tr><td colspan="9" class="text-center text-muted py-4">No passes found.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{# ── Staff list / promote ── #}
+<div class="card mt-4 no-print">
+  <div class="card-header fw-semibold">Staff Accounts</div>
+  <table class="table table-sm mb-0">
+    <thead class="table-light">
+      <tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for u in all_users %}
+      <tr>
+        <td>{{ u.name }}</td>
+        <td>{{ u.email }}</td>
+        <td><span class="badge {{ 'bg-warning text-dark' if u.role == 'admin' else 'bg-secondary' }}">{{ u.role }}</span></td>
+        <td>
+          {% if u.role != 'admin' %}
+          <form method="POST" action="{{ url_for('main.promote', user_id=u.id) }}">
+            <button class="btn btn-xs btn-outline-warning btn-sm">Make admin</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

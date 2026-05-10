@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Print Cards — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<style>
+  @media print {
+    @page { size: letter portrait; margin: 0.35in; }
+    nav, .no-print { display: none !important; }
+    .container { max-width: 100%; padding: 0; }
+  }
+  .card-grid  { display: flex; flex-wrap: wrap; gap: 0.2in; }
+  .card-pair  {
+    display: flex; align-items: stretch;
+    background: white; border: 1px solid #ccc;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .pass-card  {
+    width: 1.75in; min-height: 3.5in; padding: 0.15in 0.1in;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: space-between;
+    text-align: center;
+  }
+  .fold-line  { width: 0; border-left: 2px dashed #aaa; margin: 0.1in 0; flex-shrink: 0; }
+  .card-name  { font-size: 11pt; font-weight: 700; line-height: 1.25; word-break: break-word; }
+  .card-grade { font-size: 9pt; color: #555; margin-top: 2px; }
+  .qr-img     { width: 1.45in; height: 1.45in; display: block; }
+  .card-label { font-size: 16pt; font-weight: 700; letter-spacing: 1px; }
+  .in-label   { color: #198754; }
+  .out-label  { color: #dc3545; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-2 no-print">
+  <h4 class="mb-0">Print Hall Pass Cards</h4>
+  <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>
+</div>
+<p class="text-muted small mb-3 no-print">
+  Fold each pair on the dashed line — IN on front, OUT on back. Laminate after folding.
+  Wait for all QR codes to load before printing.
+</p>
+
+<div class="card-grid">
+{% for s in roster %}
+  {% set scan_base = base_url + '/scan/' + s.token %}
+  {% set out_qr = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + (scan_base + '?dir=out') | urlencode %}
+  {% set in_qr  = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + (scan_base + '?dir=in')  | urlencode %}
+  <div class="card-pair">
+    <div class="pass-card">
+      <div class="card-name">{{ s.full_name }}</div>
+      <div class="card-grade">Grade {{ s.grade }}</div>
+      <img class="qr-img" src="{{ in_qr }}"  alt="IN QR">
+      <div class="card-label in-label">IN</div>
+    </div>
+    <div class="fold-line"></div>
+    <div class="pass-card">
+      <div class="card-name">{{ s.full_name }}</div>
+      <div class="card-grade">Grade {{ s.grade }}</div>
+      <img class="qr-img" src="{{ out_qr }}" alt="OUT QR">
+      <div class="card-label out-label">OUT</div>
+    </div>
+  </div>
+{% else %}
+  <p class="text-muted">No students on your roster yet.</p>
+{% endfor %}
+</div>
+{% endblock %}

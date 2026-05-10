@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ 'All Students' if is_admin else 'My Roster' }} — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">{{ 'All Students' if is_admin else 'My Roster' }}</h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.add_student') }}"  class="btn btn-sm btn-primary">+ Add Student</a>
+    <a href="{{ url_for('main.print_cards') }}" class="btn btn-sm btn-outline-secondary">🖨 Print Cards</a>
+  </div>
+</div>
+
+{% if not students %}
+<div class="alert alert-info">
+  No students yet. <a href="{{ url_for('main.add_student') }}">Add your first student.</a>
+</div>
+{% else %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-dark">
+      <tr>
+        <th>Name</th>
+        <th>Grade</th>
+        <th>Quick Scan</th>
+        {% if not is_admin %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in students %}
+      <tr>
+        <td><strong>{{ s.full_name }}</strong></td>
+        <td>{{ s.grade }}</td>
+        <td>
+          <a href="{{ url_for('main.scan', token=s.token) }}"
+             class="btn btn-sm btn-outline-primary">Scan</a>
+        </td>
+        {% if not is_admin %}
+        <td>
+          <form method="POST" action="{{ url_for('main.remove_student', student_id=s.id) }}"
+                onsubmit="return confirm('Remove {{ s.full_name }} from your roster?')">
+            <button class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

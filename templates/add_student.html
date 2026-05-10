@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Add Student — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-md-5 col-lg-4">
+  <div class="card shadow">
+    <div class="card-header bg-dark text-white fw-bold">Add Student to Roster</div>
+    <div class="card-body p-4">
+      <form method="POST">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">First Name</label>
+          <input type="text" name="first_name" class="form-control" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Last Name</label>
+          <input type="text" name="last_name" class="form-control" required>
+        </div>
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Grade</label>
+          <select name="grade" class="form-select" required>
+            <option value="">Select grade...</option>
+            <option value="9">9th</option>
+            <option value="10">10th</option>
+            <option value="11">11th</option>
+            <option value="12">12th</option>
+          </select>
+        </div>
+        <button class="btn btn-primary w-100">Add to My Roster</button>
+      </form>
+    </div>
+  </div>
+  <div class="text-center mt-3">
+    <a href="{{ url_for('main.students') }}" class="text-muted">← Back to roster</a>
+  </div>
+</div>
+</div>
+{% endblock %}

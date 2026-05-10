@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Back In' if direction == 'in' else 'Pass Out' }} — {{ p.student.full_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-md-6 col-lg-5">
+
+  {% set is_out = direction == 'out' %}
+  {% set color  = '#198754' if not is_out else '#dc3545' %}
+
+  <div class="card shadow text-center" style="border-top: 5px solid {{ color }}">
+    <div class="card-body py-4 px-4">
+
+      <div style="font-size:3.5rem;line-height:1">{{ '✅' if not is_out else '🚶' }}</div>
+
+      <p class="text-uppercase fw-bold small text-muted mt-2 mb-1" style="letter-spacing:2px">
+        {{ 'Back In Class' if not is_out else 'Pass Logged — OUT' }}
+      </p>
+
+      <h3 class="{% if is_out and (recent_flag or frequent_flag) %}text-danger{% endif %} mb-0">
+        {{ p.student.full_name }}
+      </h3>
+      <div class="text-muted mb-3">Grade {{ p.student.grade }}</div>
+
+      {% if is_out and (recent_flag or frequent_flag) %}
+      <div class="mb-3">
+        {% if recent_flag   %}
+        <div class="alert alert-danger py-2 mb-2">⚠️ Used a pass in the last hour</div>
+        {% endif %}
+        {% if frequent_flag %}
+        <div class="alert alert-warning py-2">⚠️ {{ today_count + 1 }} passes today</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div style="font-size:2.8rem;font-weight:700;color:{{ color }}">
+        {{ now.strftime('%I:%M %p') }}
+      </div>
+      <div class="text-muted small mb-3">
+        {{ now.strftime('%A, %B') }} {{ now.day }}, {{ now.year }}
+      </div>
+
+      {% if not is_out and p.duration_minutes is not none %}
+      <div class="alert alert-light py-2 mb-3">
+        Was out for <strong>{{ p.duration_minutes }} min</strong>
+      </div>
+      {% endif %}
+
+      {% if is_out %}
+      <span class="badge bg-secondary mb-2">{{ pass_label }}</span>
+      {% if p.extra_data and p.extra_data.get('destination_teacher') %}
+      <div class="text-muted small">→ {{ p.extra_data.destination_teacher }}</div>
+      {% endif %}
+      {% if p.extra_data and p.extra_data.get('symptoms') %}
+      <div class="text-muted small mt-1">
+        Symptoms: {{ p.extra_data.symptoms | join(', ') or 'none' }}
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <div class="bg-light rounded py-2 px-3 mt-3 fw-semibold" style="color:{{ color }}">
+        {{ p.period }}
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</div>
+{% endblock %}
