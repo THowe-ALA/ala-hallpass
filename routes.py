@@ -1,4 +1,7 @@
+import csv
+import io
 import os
+import re
 import pytz
 from datetime import datetime, timedelta
 from functools import wraps
@@ -240,6 +243,141 @@ def add_student():
         return redirect(url_for('main.students'))
 
     return render_template('add_student.html')
+
+
+_HEADER_ALIASES = {
+    'first_name': {'first_name', 'firstname', 'first', 'first name', 'given', 'given name'},
+    'last_name':  {'last_name', 'lastname', 'last', 'last name', 'surname', 'family name'},
+    'grade':      {'grade', 'year', 'grade level', 'level'},
+}
+
+def _normalize_header(h):
+    return (h or '').strip().lower().replace('-', ' ').replace('_', ' ')
+
+def _map_columns(fieldnames):
+    """Return dict of canonical_name -> actual_column_name, or None if a required col is missing."""
+    mapping = {}
+    norm = {_normalize_header(f).replace(' ', '_'): f for f in (fieldnames or [])}
+    # also try un-underscored
+    norm2 = {_normalize_header(f): f for f in (fieldnames or [])}
+    for canonical, aliases in _HEADER_ALIASES.items():
+        found = None
+        for alias in aliases:
+            key1 = alias.replace(' ', '_')
+            if key1 in norm:
+                found = norm[key1]
+                break
+            if alias in norm2:
+                found = norm2[alias]
+                break
+        if not found:
+            return None, canonical
+        mapping[canonical] = found
+    return mapping, None
+
+def _parse_grade(raw):
+    """Accept '7', '7th', 'seventh', etc. Return int 7-12 or None."""
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    words = {'seventh': 7, 'eighth': 8, 'ninth': 9,
+             'tenth': 10, 'eleventh': 11, 'twelfth': 12}
+    if s in words:
+        return words[s]
+    digits = re.findall(r'\d+', s)
+    if not digits:
+        return None
+    try:
+        n = int(digits[0])
+    except ValueError:
+        return None
+    return n if 7 <= n <= 12 else None
+
+
+@main_bp.route('/students/upload', methods=['GET', 'POST'])
+@login_required
+def upload_students():
+    if request.method == 'GET':
+        return render_template('upload_students.html')
+
+    file = request.files.get('csv_file')
+    if not file or file.filename == '':
+        flash('Please choose a CSV file to upload.')
+        return redirect(url_for('main.upload_students'))
+
+    try:
+        raw = file.read().decode('utf-8-sig')  # handle Excel BOM
+    except UnicodeDecodeError:
+        flash('Could not read the file. Please save it as CSV (UTF-8) and try again.')
+        return redirect(url_for('main.upload_students'))
+
+    reader = csv.DictReader(io.StringIO(raw))
+    mapping, missing = _map_columns(reader.fieldnames)
+    if missing:
+        flash(f"CSV is missing a '{missing}' column. Expected headers: first_name, last_name, grade.")
+        return redirect(url_for('main.upload_students'))
+
+    # Pre-load existing students into a dict keyed by (first.lower, last.lower, grade).
+    existing = {}
+    for s in Student.query.all():
+        existing[(s.first_name.strip().lower(), s.last_name.strip().lower(), s.grade)] = s
+
+    # Pre-load this teacher's roster as a set of student_ids.
+    on_roster = {
+        ts.student_id for ts in
+        TeacherStudent.query.filter_by(teacher_id=current_user.id).all()
+    }
+
+    created = 0
+    added_to_roster = 0
+    skipped_existing = 0  # student already in DB
+    already_on_roster = 0
+    errors = []
+
+    for i, row in enumerate(reader, start=2):  # row 1 is the header
+        fn = (row.get(mapping['first_name']) or '').strip()
+        ln = (row.get(mapping['last_name'])  or '').strip()
+        grade = _parse_grade(row.get(mapping['grade']))
+
+        if not fn or not ln:
+            errors.append(f'Row {i}: missing first or last name.')
+            continue
+        if grade is None:
+            errors.append(f'Row {i}: bad grade for {fn} {ln} (must be 7-12).')
+            continue
+
+        key = (fn.lower(), ln.lower(), grade)
+        student = existing.get(key)
+
+        if student:
+            skipped_existing += 1
+        else:
+            student = Student(first_name=fn, last_name=ln, grade=grade)
+            db.session.add(student)
+            db.session.flush()  # get student.id
+            existing[key] = student
+            created += 1
+
+        if student.id in on_roster:
+            already_on_roster += 1
+        else:
+            db.session.add(TeacherStudent(
+                teacher_id=current_user.id, student_id=student.id
+            ))
+            on_roster.add(student.id)
+            added_to_roster += 1
+
+    db.session.commit()
+    return render_template(
+        'upload_students.html',
+        results={
+            'created': created,
+            'added_to_roster': added_to_roster,
+            'skipped_existing': skipped_existing,
+            'already_on_roster': already_on_roster,
+            'errors': errors,
+        }
+    )
 
 
 @main_bp.route('/students/<int:student_id>/remove', methods=['POST'])

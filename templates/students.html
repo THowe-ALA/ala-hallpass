@@ -6,6 +6,7 @@
   <h4 class="mb-0">{{ 'All Students' if is_admin else 'My Roster' }}</h4>
   <div class="d-flex gap-2">
     <a href="{{ url_for('main.add_student') }}"  class="btn btn-sm btn-primary">+ Add Student</a>
+    <a href="{{ url_for('main.upload_students') }}" class="btn btn-sm btn-outline-primary">⬆ Upload CSV</a>
     <a href="{{ url_for('main.print_cards') }}" class="btn btn-sm btn-outline-secondary">🖨 Print Cards</a>
   </div>
 </div>
