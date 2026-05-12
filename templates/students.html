@@ -3,13 +3,22 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">{{ 'All Students' if is_admin else 'My Roster' }}</h4>
+  <h4 class="mb-0">{{ 'All Students (admin)' if view == 'all' else 'My Roster' }}</h4>
   <div class="d-flex gap-2">
     <a href="{{ url_for('main.add_student') }}"  class="btn btn-sm btn-primary">+ Add Student</a>
     <a href="{{ url_for('main.upload_students') }}" class="btn btn-sm btn-outline-primary">⬆ Upload CSV</a>
     <a href="{{ url_for('main.print_cards') }}" class="btn btn-sm btn-outline-secondary">🖨 Print Cards</a>
   </div>
 </div>
+
+{% if is_admin %}
+<div class="btn-group btn-group-sm mb-3" role="group" aria-label="Roster view">
+  <a href="{{ url_for('main.students') }}"
+     class="btn {{ 'btn-primary' if view == 'mine' else 'btn-outline-primary' }}">My Roster</a>
+  <a href="{{ url_for('main.students', view='all') }}"
+     class="btn {{ 'btn-primary' if view == 'all' else 'btn-outline-primary' }}">All Students (admin)</a>
+</div>
+{% endif %}
 
 {% if chips %}
 <div class="mb-3">
@@ -42,7 +51,7 @@
         <th>Grade</th>
         {% if rows is not none %}<th>Period</th>{% endif %}
         <th>Quick Scan</th>
-        {% if not is_admin %}<th></th>{% endif %}
+        {% if view != 'all' %}<th></th>{% endif %}
       </tr>
     </thead>
     <tbody>

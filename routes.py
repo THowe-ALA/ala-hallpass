@@ -243,10 +243,15 @@ def confirm(pass_id):
 @login_required
 def students():
     period_arg = request.args.get('period') or None
-    if current_user.role == 'admin':
+    view_arg   = request.args.get('view', 'mine')  # 'mine' | 'all'
+    is_admin   = (current_user.role == 'admin')
+
+    if is_admin and view_arg == 'all':
         all_students = Student.query.order_by(Student.last_name, Student.first_name).all()
-        return render_template('students.html', students=all_students, is_admin=True,
-                               chips=None, active_period=None, rows=None)
+        return render_template('students.html', students=all_students, rows=None,
+                               is_admin=True, view='all',
+                               chips=None, active_period=None)
+
     q = (db.session.query(Student, TeacherStudent.period)
          .join(TeacherStudent, Student.id == TeacherStudent.student_id)
          .filter(TeacherStudent.teacher_id == current_user.id))
@@ -254,7 +259,8 @@ def students():
     roster_rows = q.order_by(Student.last_name, Student.first_name).all()
     rows = [{'student': s, 'period': p} for s, p in roster_rows]
     chips = _period_chips_for_teacher(current_user.id)
-    return render_template('students.html', students=None, rows=rows, is_admin=False,
+    return render_template('students.html', students=None, rows=rows,
+                           is_admin=is_admin, view='mine',
                            chips=chips, active_period=period_arg)
 
 
