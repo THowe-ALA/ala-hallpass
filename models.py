@@ -34,6 +34,7 @@ class TeacherStudent(db.Model):
     __tablename__ = 'teacher_students'
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'),    primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), primary_key=True)
+    period     = db.Column(db.String(50))  # class period for this teacher–student pairing; NULL = unassigned
 
 
 class Pass(db.Model):

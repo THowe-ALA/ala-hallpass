@@ -10,10 +10,13 @@
     <div class="card-header bg-success text-white fw-bold">Upload complete</div>
     <div class="card-body">
       <ul class="list-unstyled mb-3">
+        {% if results.period %}
+        <li><strong>Period:</strong> {{ results.period }}</li>
+        {% endif %}
         <li><strong>{{ results.created }}</strong> new students created</li>
         <li><strong>{{ results.added_to_roster }}</strong> added to your roster</li>
         <li><strong>{{ results.skipped_existing }}</strong> already existed in the database</li>
-        <li><strong>{{ results.already_on_roster }}</strong> were already on your roster</li>
+        <li><strong>{{ results.already_on_roster }}</strong> were already on your roster (period unchanged)</li>
         {% if results.errors %}
         <li class="text-danger"><strong>{{ results.errors|length }}</strong> rows had errors (see below)</li>
         {% endif %}
@@ -50,6 +53,16 @@ Jane,Smith,9
 John,Doe,11</pre>
       </p>
       <form method="POST" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Class Period</label>
+          <select name="period" class="form-select" required>
+            <option value="">Choose a period...</option>
+            {% for p in periods %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text small">All students in this file will be added to your roster under this period.</div>
+        </div>
         <div class="mb-3">
           <label class="form-label fw-semibold">CSV file</label>
           <input type="file" name="csv_file" accept=".csv,text/csv" class="form-control" required>

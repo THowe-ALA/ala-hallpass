@@ -7,6 +7,18 @@
   <a href="{{ url_for('main.add_student') }}" class="btn btn-sm btn-primary">+ Add Student</a>
 </div>
 
+{% if chips %}
+<div class="mb-3 no-print">
+  {% for value, label, count in chips %}
+  <a href="{{ url_for('main.dashboard', period=value) }}"
+     class="btn btn-sm {{ 'btn-primary' if value == active_period else 'btn-outline-primary' }} me-1 mb-1">
+    {{ label }}
+    <span class="badge {{ 'bg-light text-dark' if value == active_period else 'bg-secondary' }} ms-1">{{ count }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if not rows %}
 <div class="alert alert-info">
   No students on your roster yet.

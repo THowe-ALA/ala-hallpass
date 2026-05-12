@@ -67,6 +67,37 @@ def get_period(dt_local):
     return 'Outside School Hours'
 
 
+def _period_chips_for_teacher(teacher_id):
+    """Return [(value, label, count), ...] for filter chips on roster/dashboard pages.
+
+    `value` is what goes in the ?period= query param: None for "All",
+    '__none__' for the unassigned bucket, or the period name itself.
+    """
+    from sqlalchemy import func
+    rows = (db.session.query(TeacherStudent.period, func.count(TeacherStudent.student_id))
+            .filter(TeacherStudent.teacher_id == teacher_id)
+            .group_by(TeacherStudent.period)
+            .all())
+    by_period = {p: c for p, c in rows}
+    total = sum(by_period.values())
+    chips = [(None, 'All', total)]
+    for p in PERIODS:
+        if by_period.get(p, 0) > 0:
+            chips.append((p, p, by_period[p]))
+    if by_period.get(None, 0) > 0:
+        chips.append(('__none__', 'Unassigned', by_period[None]))
+    return chips
+
+
+def _apply_period_filter(query, period_arg):
+    """Add a TeacherStudent.period filter to a roster query based on the ?period= param."""
+    if period_arg == '__none__':
+        return query.filter(TeacherStudent.period.is_(None))
+    if period_arg:
+        return query.filter(TeacherStudent.period == period_arg)
+    return query
+
+
 def get_flags(student_id, exclude_pass_id=None):
     now_local    = datetime.now(TZ)
     today_start  = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -92,11 +123,13 @@ def index():
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
-    roster = (db.session.query(Student)
-              .join(TeacherStudent, Student.id == TeacherStudent.student_id)
-              .filter(TeacherStudent.teacher_id == current_user.id)
-              .order_by(Student.last_name, Student.first_name)
-              .all())
+    period_arg = request.args.get('period') or None
+    q = (db.session.query(Student)
+         .join(TeacherStudent, Student.id == TeacherStudent.student_id)
+         .filter(TeacherStudent.teacher_id == current_user.id))
+    q = _apply_period_filter(q, period_arg)
+    roster = q.order_by(Student.last_name, Student.first_name).all()
+    chips = _period_chips_for_teacher(current_user.id)
 
     now_local   = datetime.now(TZ)
     today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -124,7 +157,8 @@ def dashboard():
             'duration_so_far': duration_so_far,
         })
 
-    return render_template('dashboard.html', rows=rows, now=now_local)
+    return render_template('dashboard.html', rows=rows, now=now_local,
+                           chips=chips, active_period=period_arg)
 
 
 @main_bp.route('/scan/<token>')
@@ -208,24 +242,32 @@ def confirm(pass_id):
 @main_bp.route('/students')
 @login_required
 def students():
+    period_arg = request.args.get('period') or None
     if current_user.role == 'admin':
         all_students = Student.query.order_by(Student.last_name, Student.first_name).all()
-        return render_template('students.html', students=all_students, is_admin=True)
-    roster = (db.session.query(Student)
-              .join(TeacherStudent, Student.id == TeacherStudent.student_id)
-              .filter(TeacherStudent.teacher_id == current_user.id)
-              .order_by(Student.last_name, Student.first_name)
-              .all())
-    return render_template('students.html', students=roster, is_admin=False)
+        return render_template('students.html', students=all_students, is_admin=True,
+                               chips=None, active_period=None, rows=None)
+    q = (db.session.query(Student, TeacherStudent.period)
+         .join(TeacherStudent, Student.id == TeacherStudent.student_id)
+         .filter(TeacherStudent.teacher_id == current_user.id))
+    q = _apply_period_filter(q, period_arg)
+    roster_rows = q.order_by(Student.last_name, Student.first_name).all()
+    rows = [{'student': s, 'period': p} for s, p in roster_rows]
+    chips = _period_chips_for_teacher(current_user.id)
+    return render_template('students.html', students=None, rows=rows, is_admin=False,
+                           chips=chips, active_period=period_arg)
 
 
 @main_bp.route('/students/add', methods=['GET', 'POST'])
 @login_required
 def add_student():
     if request.method == 'POST':
-        fn    = request.form['first_name'].strip()
-        ln    = request.form['last_name'].strip()
-        grade = int(request.form['grade'])
+        fn     = request.form['first_name'].strip()
+        ln     = request.form['last_name'].strip()
+        grade  = int(request.form['grade'])
+        period = request.form.get('period') or None
+        if period and period not in PERIODS:
+            period = None
 
         student = Student.query.filter_by(first_name=fn, last_name=ln, grade=grade).first()
         if not student:
@@ -233,16 +275,21 @@ def add_student():
             db.session.add(student)
             db.session.flush()
 
-        if not TeacherStudent.query.filter_by(
+        existing = TeacherStudent.query.filter_by(
             teacher_id=current_user.id, student_id=student.id
-        ).first():
-            db.session.add(TeacherStudent(teacher_id=current_user.id, student_id=student.id))
+        ).first()
+        if existing:
+            if period and existing.period != period:
+                existing.period = period
+        else:
+            db.session.add(TeacherStudent(
+                teacher_id=current_user.id, student_id=student.id, period=period))
 
         db.session.commit()
         flash(f'{student.full_name} added to your roster.')
         return redirect(url_for('main.students'))
 
-    return render_template('add_student.html')
+    return render_template('add_student.html', periods=PERIODS)
 
 
 _HEADER_ALIASES = {
@@ -298,12 +345,16 @@ def _parse_grade(raw):
 @login_required
 def upload_students():
     if request.method == 'GET':
-        return render_template('upload_students.html')
+        return render_template('upload_students.html', periods=PERIODS)
 
     file = request.files.get('csv_file')
     if not file or file.filename == '':
         flash('Please choose a CSV file to upload.')
         return redirect(url_for('main.upload_students'))
+
+    period = request.form.get('period') or None
+    if period and period not in PERIODS:
+        period = None
 
     try:
         raw = file.read().decode('utf-8-sig')  # handle Excel BOM
@@ -362,7 +413,7 @@ def upload_students():
             already_on_roster += 1
         else:
             db.session.add(TeacherStudent(
-                teacher_id=current_user.id, student_id=student.id
+                teacher_id=current_user.id, student_id=student.id, period=period
             ))
             on_roster.add(student.id)
             added_to_roster += 1
@@ -370,11 +421,13 @@ def upload_students():
     db.session.commit()
     return render_template(
         'upload_students.html',
+        periods=PERIODS,
         results={
             'created': created,
             'added_to_roster': added_to_roster,
             'skipped_existing': skipped_existing,
             'already_on_roster': already_on_roster,
+            'period': period,
             'errors': errors,
         }
     )

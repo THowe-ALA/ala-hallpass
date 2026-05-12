@@ -11,9 +11,26 @@
   </div>
 </div>
 
-{% if not students %}
+{% if chips %}
+<div class="mb-3">
+  {% for value, label, count in chips %}
+  <a href="{{ url_for('main.students', period=value) }}"
+     class="btn btn-sm {{ 'btn-primary' if value == active_period else 'btn-outline-primary' }} me-1 mb-1">
+    {{ label }}
+    <span class="badge {{ 'bg-light text-dark' if value == active_period else 'bg-secondary' }} ms-1">{{ count }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% set list_to_show = rows if rows is not none else students %}
+{% if not list_to_show %}
 <div class="alert alert-info">
-  No students yet. <a href="{{ url_for('main.add_student') }}">Add your first student.</a>
+  {% if active_period %}
+    No students in this period yet.
+  {% else %}
+    No students yet. <a href="{{ url_for('main.add_student') }}">Add your first student.</a>
+  {% endif %}
 </div>
 {% else %}
 <div class="card shadow-sm">
@@ -23,29 +40,48 @@
       <tr>
         <th>Name</th>
         <th>Grade</th>
+        {% if rows is not none %}<th>Period</th>{% endif %}
         <th>Quick Scan</th>
         {% if not is_admin %}<th></th>{% endif %}
       </tr>
     </thead>
     <tbody>
-      {% for s in students %}
-      <tr>
-        <td><strong>{{ s.full_name }}</strong></td>
-        <td>{{ s.grade }}</td>
-        <td>
-          <a href="{{ url_for('main.scan', token=s.token) }}"
-             class="btn btn-sm btn-outline-primary">Scan</a>
-        </td>
-        {% if not is_admin %}
-        <td>
-          <form method="POST" action="{{ url_for('main.remove_student', student_id=s.id) }}"
-                onsubmit="return confirm('Remove {{ s.full_name }} from your roster?')">
-            <button class="btn btn-sm btn-outline-danger">Remove</button>
-          </form>
-        </td>
-        {% endif %}
-      </tr>
-      {% endfor %}
+      {% if rows is not none %}
+        {% for r in rows %}
+        <tr>
+          <td><strong>{{ r.student.full_name }}</strong></td>
+          <td>{{ r.student.grade }}</td>
+          <td>
+            {% if r.period %}
+              <span class="badge bg-light text-dark border">{{ r.period }}</span>
+            {% else %}
+              <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('main.scan', token=r.student.token) }}"
+               class="btn btn-sm btn-outline-primary">Scan</a>
+          </td>
+          <td>
+            <form method="POST" action="{{ url_for('main.remove_student', student_id=r.student.id) }}"
+                  onsubmit="return confirm('Remove {{ r.student.full_name }} from your roster?')">
+              <button class="btn btn-sm btn-outline-danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        {% for s in students %}
+        <tr>
+          <td><strong>{{ s.full_name }}</strong></td>
+          <td>{{ s.grade }}</td>
+          <td>
+            <a href="{{ url_for('main.scan', token=s.token) }}"
+               class="btn btn-sm btn-outline-primary">Scan</a>
+          </td>
+        </tr>
+        {% endfor %}
+      {% endif %}
     </tbody>
   </table>
   </div>

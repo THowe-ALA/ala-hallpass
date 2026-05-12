@@ -55,8 +55,22 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        _apply_lightweight_migrations()
 
     return app
+
+
+def _apply_lightweight_migrations():
+    """Idempotent column-adds that db.create_all() won't apply to existing tables."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    cols = {c['name'] for c in inspector.get_columns('teacher_students')}
+    if 'period' not in cols:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE teacher_students ADD COLUMN period VARCHAR(50)'))
+            # Existing rows pre-date period tracking — backfill to "1st Period"
+            # since that was the only class on the roster during initial testing.
+            conn.execute(text("UPDATE teacher_students SET period = '1st Period' WHERE period IS NULL"))
 
 
 app = create_app()
