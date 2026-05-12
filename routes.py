@@ -98,6 +98,74 @@ def _apply_period_filter(query, period_arg):
     return query
 
 
+def _previous_school_day(today_date, today_weekday):
+    """Mon → previous Friday; Tue–Fri → yesterday; weekend → None (no flag)."""
+    if today_weekday == 0:                 # Monday
+        return today_date - timedelta(days=3)
+    if today_weekday in (5, 6):            # Saturday / Sunday
+        return None
+    return today_date - timedelta(days=1)
+
+
+def get_same_period_streak(student_id, now_local):
+    """Return (flagged_bool, current_period_or_None).
+
+    Flagged when the student had a pass in the same period on the immediately
+    preceding school day (Friday counts as previous school day for Monday).
+    """
+    period = get_period(now_local)
+    if period == 'Outside School Hours':
+        return False, None
+    prev_day = _previous_school_day(now_local.date(), now_local.weekday())
+    if prev_day is None:
+        return False, period
+    prior = (Pass.query
+             .filter(Pass.student_id == student_id,
+                     Pass.period == period,
+                     Pass.time_out.isnot(None),
+                     db.func.date(Pass.time_out) == prev_day)
+             .first())
+    return prior is not None, period
+
+
+def get_buddy_pairs(student_id, teacher_id, now_local, threshold=3, window_seconds=300):
+    """Return list of buddy names: other students who left within `window_seconds`
+    of this student on `threshold` or more separate occasions in the current
+    school week (Mon–Fri).
+    """
+    weekday = now_local.weekday()
+    if weekday >= 5:                       # weekend → no school week to check
+        return []
+    week_start = now_local.date() - timedelta(days=weekday)
+    week_end   = week_start + timedelta(days=5)  # exclusive (Saturday)
+
+    week_passes = (Pass.query
+                   .filter(Pass.teacher_id == teacher_id,
+                           Pass.time_out.isnot(None),
+                           db.func.date(Pass.time_out) >= week_start,
+                           db.func.date(Pass.time_out) <  week_end)
+                   .order_by(Pass.time_out)
+                   .all())
+
+    target_passes = [p for p in week_passes if p.student_id == student_id]
+    if not target_passes:
+        return []
+
+    pair_counts = {}
+    for tp in target_passes:
+        for op in week_passes:
+            if op.student_id == student_id or op.id == tp.id:
+                continue
+            if abs((op.time_out - tp.time_out).total_seconds()) <= window_seconds:
+                pair_counts[op.student_id] = pair_counts.get(op.student_id, 0) + 1
+
+    buddy_ids = [sid for sid, c in pair_counts.items() if c >= threshold]
+    if not buddy_ids:
+        return []
+    buddies = Student.query.filter(Student.id.in_(buddy_ids)).all()
+    return sorted(s.full_name for s in buddies)
+
+
 def get_flags(student_id, exclude_pass_id=None):
     now_local    = datetime.now(TZ)
     today_start  = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -173,6 +241,8 @@ def scan(token):
 
     now_local            = datetime.now(TZ)
     recent_flag, frequent_flag, today_count = get_flags(student.id)
+    same_period_flag, current_period = get_same_period_streak(student.id, now_local)
+    buddy_names = get_buddy_pairs(student.id, current_user.id, now_local)
 
     duration_so_far = None
     if open_pass:
@@ -181,6 +251,8 @@ def scan(token):
     return render_template('scan.html',
         student=student, open_pass=open_pass,
         recent_flag=recent_flag, frequent_flag=frequent_flag,
+        same_period_flag=same_period_flag, current_period=current_period,
+        buddy_names=buddy_names,
         today_count=today_count, duration_so_far=duration_so_far,
         pass_types=PASS_TYPES, symptoms=SYMPTOMS,
         interventions=INTERVENTIONS, now=now_local)
@@ -234,10 +306,13 @@ def confirm(pass_id):
     direction = 'in' if p.time_in else 'out'
     recent_flag, frequent_flag, today_count = get_flags(p.student_id, exclude_pass_id=p.id)
     now_local = datetime.now(TZ)
+    same_period_flag, _ = get_same_period_streak(p.student_id, now_local)
+    buddy_names = get_buddy_pairs(p.student_id, p.teacher_id, now_local)
     return render_template('confirm.html',
         p=p, direction=direction,
         pass_label=PASS_LABELS.get(p.pass_type, p.pass_type),
         recent_flag=recent_flag, frequent_flag=frequent_flag,
+        same_period_flag=same_period_flag, buddy_names=buddy_names,
         today_count=today_count, now=now_local)
 
 

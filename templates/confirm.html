@@ -22,13 +22,21 @@
       </h3>
       <div class="text-muted mb-3">Grade {{ p.student.grade }}</div>
 
-      {% if is_out and (recent_flag or frequent_flag) %}
+      {% if is_out and (recent_flag or frequent_flag or same_period_flag or buddy_names) %}
       <div class="mb-3">
         {% if recent_flag   %}
         <div class="alert alert-danger py-2 mb-2">⚠️ Used a pass in the last hour</div>
         {% endif %}
         {% if frequent_flag %}
-        <div class="alert alert-warning py-2">⚠️ {{ today_count + 1 }} passes today</div>
+        <div class="alert alert-warning py-2 mb-2">⚠️ {{ today_count + 1 }} passes today</div>
+        {% endif %}
+        {% if same_period_flag %}
+        <div class="alert alert-warning py-2 mb-2">🔁 2nd day in a row leaving this period</div>
+        {% endif %}
+        {% if buddy_names %}
+        <div class="alert alert-warning py-2">
+          👯 Frequent buddy this week: {{ buddy_names | join(', ') }}
+        </div>
         {% endif %}
       </div>
       {% endif %}
