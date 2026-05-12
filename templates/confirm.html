@@ -51,6 +51,9 @@
       {% if p.extra_data and p.extra_data.get('destination_teacher') %}
       <div class="text-muted small">→ {{ p.extra_data.destination_teacher }}</div>
       {% endif %}
+      {% if p.extra_data and p.extra_data.get('releasing_teacher') %}
+      <div class="text-muted small">Released by {{ p.extra_data.releasing_teacher }}</div>
+      {% endif %}
       {% if p.extra_data and p.extra_data.get('symptoms') %}
       <div class="text-muted small mt-1">
         Symptoms: {{ p.extra_data.symptoms | join(', ') or 'none' }}
@@ -65,6 +68,44 @@
     </div>
   </div>
 
+  <a href="{{ url_for('main.dashboard') }}"
+     class="btn btn-primary btn-lg w-100 mt-3 py-3" id="scan-next-btn">
+    📷 Scan Next Student
+  </a>
+  <div class="text-center text-muted small mt-2">
+    Returning to roster in <span id="redirect-countdown">4</span>s…
+    <a href="#" id="cancel-redirect" class="ms-2">stay here</a>
+  </div>
+
 </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function() {
+    let secondsLeft = 4;
+    const countdownEl = document.getElementById('redirect-countdown');
+    const cancelEl    = document.getElementById('cancel-redirect');
+    const target      = "{{ url_for('main.dashboard') }}";
+    let cancelled = false;
+
+    cancelEl.addEventListener('click', function(e) {
+      e.preventDefault();
+      cancelled = true;
+      cancelEl.parentElement.innerHTML = '<span class="text-muted small">Auto-return cancelled.</span>';
+    });
+
+    const timer = setInterval(function() {
+      if (cancelled) { clearInterval(timer); return; }
+      secondsLeft -= 1;
+      if (secondsLeft <= 0) {
+        clearInterval(timer);
+        window.location.href = target;
+      } else {
+        countdownEl.textContent = secondsLeft;
+      }
+    }, 1000);
+  })();
+</script>
 {% endblock %}

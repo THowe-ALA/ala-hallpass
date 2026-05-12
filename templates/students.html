@@ -32,6 +32,13 @@
 </div>
 {% endif %}
 
+{% if rows is not none and rows %}
+<div class="mb-3">
+  <input type="search" id="roster-search" class="form-control"
+         placeholder="🔍 Search by name…" autocomplete="off">
+</div>
+{% endif %}
+
 {% set list_to_show = rows if rows is not none else students %}
 {% if not list_to_show %}
 <div class="alert alert-info">
@@ -50,19 +57,27 @@
         <th>Name</th>
         <th>Grade</th>
         {% if rows is not none %}<th>Period</th>{% endif %}
+        {% if rows is not none %}<th class="text-center">Times Out</th>{% endif %}
         <th>Quick Scan</th>
         {% if view != 'all' %}<th></th>{% endif %}
       </tr>
     </thead>
-    <tbody>
+    <tbody id="roster-tbody">
       {% if rows is not none %}
         {% for r in rows %}
-        <tr>
+        <tr data-search="{{ r.student.full_name | lower }}">
           <td><strong>{{ r.student.full_name }}</strong></td>
           <td>{{ r.student.grade }}</td>
           <td>
             {% if r.period %}
               <span class="badge bg-light text-dark border">{{ r.period }}</span>
+            {% else %}
+              <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if r.pass_count %}
+              <span class="badge bg-secondary">{{ r.pass_count }}×</span>
             {% else %}
               <span class="text-muted small">—</span>
             {% endif %}
@@ -96,4 +111,20 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function() {
+    const input = document.getElementById('roster-search');
+    if (!input) return;
+    const rows = document.querySelectorAll('#roster-tbody tr[data-search]');
+    input.addEventListener('input', function() {
+      const q = input.value.trim().toLowerCase();
+      rows.forEach(r => {
+        r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
+      });
+    });
+  })();
+</script>
 {% endblock %}

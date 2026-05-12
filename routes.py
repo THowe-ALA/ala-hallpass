@@ -200,6 +200,8 @@ def log_out(student_id):
         extra['interventions'] = request.form.getlist('interventions')
     elif pass_type == 'teacher_visit':
         extra['destination_teacher'] = request.form.get('destination_teacher', '').strip()
+    elif pass_type == 'late':
+        extra['releasing_teacher'] = request.form.get('releasing_teacher', '').strip()
 
     p = Pass(
         student_id=student.id,
@@ -257,7 +259,17 @@ def students():
          .filter(TeacherStudent.teacher_id == current_user.id))
     q = _apply_period_filter(q, period_arg)
     roster_rows = q.order_by(Student.last_name, Student.first_name).all()
-    rows = [{'student': s, 'period': p} for s, p in roster_rows]
+
+    from sqlalchemy import func
+    pass_counts = dict(
+        db.session.query(Pass.student_id, func.count(Pass.id))
+        .filter(Pass.teacher_id == current_user.id,
+                Pass.time_out.isnot(None))
+        .group_by(Pass.student_id)
+        .all()
+    )
+    rows = [{'student': s, 'period': p, 'pass_count': pass_counts.get(s.id, 0)}
+            for s, p in roster_rows]
     chips = _period_chips_for_teacher(current_user.id)
     return render_template('students.html', students=None, rows=rows,
                            is_admin=is_admin, view='mine',
