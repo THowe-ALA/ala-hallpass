@@ -128,42 +128,66 @@ def get_same_period_streak(student_id, now_local):
     return prior is not None, period
 
 
-def get_buddy_pairs(student_id, teacher_id, now_local, threshold=3, window_seconds=300):
-    """Return list of buddy names: other students who left within `window_seconds`
-    of this student on `threshold` or more separate occasions in the current
-    school week (Mon–Fri).
+def get_cross_teacher_buddies(now_local, threshold=3, window_seconds=300):
+    """Detect cross-class buddy pairs across the whole campus this week.
+
+    Returns (buddy_map, buddy_pairs):
+      - buddy_map: {student_id: [buddy_full_name, ...]}
+      - buddy_pairs: sorted list of unique (name_a, name_b) tuples
+
+    A "buddy pair" = two students whose passes were logged within
+    `window_seconds` of each other by DIFFERENT teachers, on `threshold` or
+    more separate occasions during the current school week (Mon–Fri).
     """
     weekday = now_local.weekday()
     if weekday >= 5:                       # weekend → no school week to check
-        return []
+        return {}, []
     week_start = now_local.date() - timedelta(days=weekday)
-    week_end   = week_start + timedelta(days=5)  # exclusive (Saturday)
+    week_end   = week_start + timedelta(days=5)  # exclusive
 
     week_passes = (Pass.query
-                   .filter(Pass.teacher_id == teacher_id,
-                           Pass.time_out.isnot(None),
+                   .filter(Pass.time_out.isnot(None),
                            db.func.date(Pass.time_out) >= week_start,
                            db.func.date(Pass.time_out) <  week_end)
                    .order_by(Pass.time_out)
                    .all())
 
-    target_passes = [p for p in week_passes if p.student_id == student_id]
-    if not target_passes:
-        return []
-
-    pair_counts = {}
-    for tp in target_passes:
-        for op in week_passes:
-            if op.student_id == student_id or op.id == tp.id:
+    pair_counts = {}                       # (student_a, student_b) → count, a<b
+    n = len(week_passes)
+    for i in range(n):
+        pa = week_passes[i]
+        for j in range(i + 1, n):
+            pb = week_passes[j]
+            if (pb.time_out - pa.time_out).total_seconds() > window_seconds:
+                break                      # sorted, no later pass will fit window
+            if pa.student_id == pb.student_id:
                 continue
-            if abs((op.time_out - tp.time_out).total_seconds()) <= window_seconds:
-                pair_counts[op.student_id] = pair_counts.get(op.student_id, 0) + 1
+            if pa.teacher_id == pb.teacher_id:
+                continue
+            key = (min(pa.student_id, pb.student_id), max(pa.student_id, pb.student_id))
+            pair_counts[key] = pair_counts.get(key, 0) + 1
 
-    buddy_ids = [sid for sid, c in pair_counts.items() if c >= threshold]
-    if not buddy_ids:
-        return []
-    buddies = Student.query.filter(Student.id.in_(buddy_ids)).all()
-    return sorted(s.full_name for s in buddies)
+    flagged_pairs = [(a, b) for (a, b), c in pair_counts.items() if c >= threshold]
+    if not flagged_pairs:
+        return {}, []
+
+    all_ids = {sid for pair in flagged_pairs for sid in pair}
+    name_by_id = {s.id: s.full_name for s in
+                  Student.query.filter(Student.id.in_(all_ids)).all()}
+
+    buddy_map = {}
+    pair_set  = set()
+    for a, b in flagged_pairs:
+        na, nb = name_by_id.get(a), name_by_id.get(b)
+        if not na or not nb:
+            continue
+        buddy_map.setdefault(a, []).append(nb)
+        buddy_map.setdefault(b, []).append(na)
+        pair_set.add(tuple(sorted([na, nb])))
+
+    for sid in buddy_map:
+        buddy_map[sid] = sorted(buddy_map[sid])
+    return buddy_map, sorted(pair_set)
 
 
 def get_flags(student_id, exclude_pass_id=None):
@@ -242,7 +266,6 @@ def scan(token):
     now_local            = datetime.now(TZ)
     recent_flag, frequent_flag, today_count = get_flags(student.id)
     same_period_flag, current_period = get_same_period_streak(student.id, now_local)
-    buddy_names = get_buddy_pairs(student.id, current_user.id, now_local)
 
     duration_so_far = None
     if open_pass:
@@ -252,7 +275,6 @@ def scan(token):
         student=student, open_pass=open_pass,
         recent_flag=recent_flag, frequent_flag=frequent_flag,
         same_period_flag=same_period_flag, current_period=current_period,
-        buddy_names=buddy_names,
         today_count=today_count, duration_so_far=duration_so_far,
         pass_types=PASS_TYPES, symptoms=SYMPTOMS,
         interventions=INTERVENTIONS, now=now_local)
@@ -307,12 +329,11 @@ def confirm(pass_id):
     recent_flag, frequent_flag, today_count = get_flags(p.student_id, exclude_pass_id=p.id)
     now_local = datetime.now(TZ)
     same_period_flag, _ = get_same_period_streak(p.student_id, now_local)
-    buddy_names = get_buddy_pairs(p.student_id, p.teacher_id, now_local)
     return render_template('confirm.html',
         p=p, direction=direction,
         pass_label=PASS_LABELS.get(p.pass_type, p.pass_type),
         recent_flag=recent_flag, frequent_flag=frequent_flag,
-        same_period_flag=same_period_flag, buddy_names=buddy_names,
+        same_period_flag=same_period_flag,
         today_count=today_count, now=now_local)
 
 
@@ -325,9 +346,11 @@ def students():
 
     if is_admin and view_arg == 'all':
         all_students = Student.query.order_by(Student.last_name, Student.first_name).all()
+        buddy_map, buddy_pairs = get_cross_teacher_buddies(datetime.now(TZ))
         return render_template('students.html', students=all_students, rows=None,
                                is_admin=True, view='all',
-                               chips=None, active_period=None)
+                               chips=None, active_period=None,
+                               buddy_map=buddy_map, buddy_pairs=buddy_pairs)
 
     q = (db.session.query(Student, TeacherStudent.period)
          .join(TeacherStudent, Student.id == TeacherStudent.student_id)
@@ -541,16 +564,20 @@ def remove_student(student_id):
 @main_bp.route('/print')
 @login_required
 def print_cards():
-    if current_user.role == 'admin':
+    period_arg = request.args.get('period') or None
+    # Admin with no period filter keeps the full-school card sheet;
+    # otherwise filter to the current teacher's roster (optionally by period).
+    if current_user.role == 'admin' and not period_arg:
         roster = Student.query.order_by(Student.last_name, Student.first_name).all()
     else:
-        roster = (db.session.query(Student)
-                  .join(TeacherStudent, Student.id == TeacherStudent.student_id)
-                  .filter(TeacherStudent.teacher_id == current_user.id)
-                  .order_by(Student.last_name, Student.first_name)
-                  .all())
+        q = (db.session.query(Student)
+             .join(TeacherStudent, Student.id == TeacherStudent.student_id)
+             .filter(TeacherStudent.teacher_id == current_user.id))
+        q = _apply_period_filter(q, period_arg)
+        roster = q.order_by(Student.last_name, Student.first_name).all()
     base_url = os.environ.get('BASE_URL', request.host_url.rstrip('/'))
-    return render_template('print_cards.html', roster=roster, base_url=base_url)
+    return render_template('print_cards.html', roster=roster, base_url=base_url,
+                           filter_period=period_arg)
 
 
 @main_bp.route('/admin')

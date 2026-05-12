@@ -30,12 +30,18 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-2 no-print">
-  <h4 class="mb-0">Print Hall Pass Cards</h4>
+  <h4 class="mb-0">
+    Print Hall Pass Cards
+    {% if filter_period %}<span class="text-muted fs-6">— {{ filter_period }} only</span>{% endif %}
+  </h4>
   <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>
 </div>
 <p class="text-muted small mb-3 no-print">
   Fold each pair on the dashed line — IN on front, OUT on back. Laminate after folding.
   Wait for all QR codes to load before printing.
+  {% if filter_period %}
+  <a href="{{ url_for('main.print_cards') }}" class="ms-2">Print full roster instead</a>
+  {% endif %}
 </p>
 
 <div class="card-grid">

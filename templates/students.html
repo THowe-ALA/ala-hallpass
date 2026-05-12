@@ -7,7 +7,7 @@
   <div class="d-flex gap-2">
     <a href="{{ url_for('main.add_student') }}"  class="btn btn-sm btn-primary">+ Add Student</a>
     <a href="{{ url_for('main.upload_students') }}" class="btn btn-sm btn-outline-primary">⬆ Upload CSV</a>
-    <a href="{{ url_for('main.print_cards') }}" class="btn btn-sm btn-outline-secondary">🖨 Print Cards</a>
+    <a href="{{ url_for('main.print_cards', period=active_period) }}" class="btn btn-sm btn-outline-secondary">🖨 Print Cards</a>
   </div>
 </div>
 
@@ -17,6 +17,21 @@
      class="btn {{ 'btn-primary' if view == 'mine' else 'btn-outline-primary' }}">My Roster</a>
   <a href="{{ url_for('main.students', view='all') }}"
      class="btn {{ 'btn-primary' if view == 'all' else 'btn-outline-primary' }}">All Students (admin)</a>
+</div>
+{% endif %}
+
+{% if view == 'all' and buddy_pairs %}
+<div class="alert alert-warning mb-3">
+  <div class="fw-bold mb-2">👯 Cross-class buddy patterns this week ({{ buddy_pairs | length }})</div>
+  <div class="small text-muted mb-2">
+    Pairs of students who left within 5 minutes of each other from <em>different teachers'</em> classes,
+    3 or more times so far this school week. Flagged students are marked with 👯 below.
+  </div>
+  <ul class="small mb-0">
+    {% for a, b in buddy_pairs %}
+    <li>{{ a }} ↔ {{ b }}</li>
+    {% endfor %}
+  </ul>
 </div>
 {% endif %}
 
@@ -96,8 +111,16 @@
         {% endfor %}
       {% else %}
         {% for s in students %}
-        <tr>
-          <td><strong>{{ s.full_name }}</strong></td>
+        <tr {% if buddy_map and s.id in buddy_map %}class="table-warning"{% endif %}>
+          <td>
+            <strong>{{ s.full_name }}</strong>
+            {% if buddy_map and s.id in buddy_map %}
+            <span class="badge bg-warning text-dark ms-1"
+                  title="Buddies: {{ buddy_map[s.id] | join(', ') }}">
+              👯 {{ buddy_map[s.id] | join(', ') }}
+            </span>
+            {% endif %}
+          </td>
           <td>{{ s.grade }}</td>
           <td>
             <a href="{{ url_for('main.scan', token=s.token) }}"
