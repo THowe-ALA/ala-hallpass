@@ -41,6 +41,26 @@ def admin_required(f):
     return decorated
 
 
+def _nurse_viewer_emails():
+    raw = os.environ.get('NURSE_VIEWERS', '')
+    return {e.strip().lower() for e in raw.split(',') if e.strip()}
+
+
+def is_nurse_viewer(user):
+    if not user or not user.is_authenticated:
+        return False
+    return (user.email or '').strip().lower() in _nurse_viewer_emails()
+
+
+def nurse_viewer_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_nurse_viewer(current_user):
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
 def get_period(dt_local):
     is_wed = dt_local.weekday() == 2
     t = dt_local.hour * 60 + dt_local.minute
@@ -313,9 +333,31 @@ def log_out(student_id):
 @main_bp.route('/log_in/<int:pass_id>', methods=['POST'])
 @login_required
 def log_in(pass_id):
-    p             = Pass.query.get_or_404(pass_id)
-    now_utc       = datetime.utcnow()
-    p.time_in     = now_utc
+    p       = Pass.query.get_or_404(pass_id)
+    now_utc = datetime.utcnow()
+    action  = request.form.get('action', 'log_in')
+
+    if p.pass_type == 'nurse' and is_nurse_viewer(current_user):
+        extra = dict(p.extra_data or {})
+        extra['symptoms']      = request.form.getlist('symptoms')
+        extra['interventions'] = request.form.getlist('interventions')
+        notes = (request.form.get('nurse_notes') or '').strip()
+        if notes:
+            extra['nurse_notes'] = notes
+        elif 'nurse_notes' in extra:
+            extra.pop('nurse_notes')
+        extra['nurse_id']     = current_user.id
+        extra['nurse_email']  = current_user.email
+        p.extra_data = extra
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(p, 'extra_data')
+
+        if action == 'save':
+            db.session.commit()
+            flash('Nurse info saved. Student still marked OUT.')
+            return redirect(url_for('main.scan', token=p.student.token))
+
+    p.time_in          = now_utc
     p.duration_minutes = max(0, int((now_utc - p.time_out).total_seconds() // 60))
     db.session.commit()
     return redirect(url_for('main.confirm', pass_id=pass_id))
@@ -630,6 +672,90 @@ def promote(user_id):
     db.session.commit()
     flash(f'{user.name} is now an admin.')
     return redirect(url_for('main.admin'))
+
+
+def _nurse_passes_query():
+    return (Pass.query
+            .filter(Pass.pass_type == 'nurse')
+            .filter(Pass.time_out.isnot(None)))
+
+
+@main_bp.route('/nurse')
+@login_required
+@nurse_viewer_required
+def nurse_log():
+    date_str  = request.args.get('date', '').strip()
+    student_q = request.args.get('student', '').strip()
+
+    q = _nurse_passes_query()
+    day = None
+    if date_str:
+        try:
+            day = datetime.strptime(date_str, '%Y-%m-%d').date()
+            q = q.filter(db.func.date(Pass.time_out) == day)
+        except ValueError:
+            pass
+    if student_q:
+        q = q.join(Student).filter(db.or_(
+            Student.first_name.ilike(f'%{student_q}%'),
+            Student.last_name.ilike(f'%{student_q}%'),
+        ))
+
+    passes = q.order_by(Pass.time_out.desc()).all()
+    return render_template('nurse_log.html',
+        passes=passes, date_str=date_str, student_q=student_q)
+
+
+@main_bp.route('/nurse/export.csv')
+@login_required
+@nurse_viewer_required
+def nurse_export():
+    from flask import Response
+    date_str  = request.args.get('date', '').strip()
+    student_q = request.args.get('student', '').strip()
+
+    q = _nurse_passes_query()
+    if date_str:
+        try:
+            day = datetime.strptime(date_str, '%Y-%m-%d').date()
+            q = q.filter(db.func.date(Pass.time_out) == day)
+        except ValueError:
+            pass
+    if student_q:
+        q = q.join(Student).filter(db.or_(
+            Student.first_name.ilike(f'%{student_q}%'),
+            Student.last_name.ilike(f'%{student_q}%'),
+        ))
+
+    passes = q.order_by(Pass.time_out.desc()).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['Date', 'Time Out', 'Time In', 'Duration (min)',
+                     'Student', 'Grade', 'Period', 'Sending Teacher',
+                     'Symptoms', 'Interventions', 'Nurse Notes'])
+    for p in passes:
+        extra = p.extra_data or {}
+        writer.writerow([
+            p.time_out.strftime('%Y-%m-%d') if p.time_out else '',
+            p.time_out.strftime('%I:%M %p') if p.time_out else '',
+            p.time_in.strftime('%I:%M %p')  if p.time_in  else '',
+            p.duration_minutes if p.duration_minutes is not None else '',
+            p.student.full_name,
+            p.student.grade,
+            p.period or '',
+            p.teacher.name,
+            '; '.join(extra.get('symptoms') or []),
+            '; '.join(extra.get('interventions') or []),
+            extra.get('nurse_notes', ''),
+        ])
+
+    filename = f"nurse_log_{date_str or 'all'}.csv"
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @main_bp.app_errorhandler(403)

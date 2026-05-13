@@ -92,8 +92,15 @@
             {% if p.extra_data.get('destination_teacher') %}
               → {{ p.extra_data.destination_teacher }}
             {% endif %}
-            {% if p.extra_data.get('symptoms') %}
-              {{ p.extra_data.symptoms | join(', ') }}
+            {% if p.extra_data.get('releasing_teacher') %}
+              from {{ p.extra_data.releasing_teacher }}
+            {% endif %}
+            {% if p.pass_type == 'nurse' %}
+              {% if is_nurse_viewer and p.extra_data.get('symptoms') %}
+                {{ p.extra_data.symptoms | join(', ') }}
+              {% elif p.pass_type == 'nurse' %}
+                <em>(nurse details — restricted)</em>
+              {% endif %}
             {% endif %}
           {% endif %}
         </td>

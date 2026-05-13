@@ -57,7 +57,7 @@
       {% if p.extra_data and p.extra_data.get('releasing_teacher') %}
       <div class="text-muted small">Released by {{ p.extra_data.releasing_teacher }}</div>
       {% endif %}
-      {% if p.extra_data and p.extra_data.get('symptoms') %}
+      {% if is_nurse_viewer and p.extra_data and p.extra_data.get('symptoms') %}
       <div class="text-muted small mt-1">
         Symptoms: {{ p.extra_data.symptoms | join(', ') or 'none' }}
       </div>

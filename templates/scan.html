@@ -43,9 +43,51 @@
           {% endif %}
         </div>
       </div>
+
+      {% if is_nurse_viewer and open_pass.pass_type == 'nurse' %}
+      {# ── Nurse arrival/update form ── #}
+      <form method="POST" action="{{ url_for('main.log_in', pass_id=open_pass.id) }}">
+        <div class="border border-warning rounded p-3 mb-3">
+          <p class="fw-bold small mb-2">Symptoms (check all that apply):</p>
+          <div class="row">
+            {% for s in symptoms %}
+            <div class="col-6">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="symptoms"
+                       value="{{ s }}" id="nsym{{ loop.index }}"
+                       {% if open_pass.extra_data and s in (open_pass.extra_data.get('symptoms') or []) %}checked{% endif %}>
+                <label class="form-check-label small" for="nsym{{ loop.index }}">{{ s }}</label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <p class="fw-bold small mt-3 mb-2">Interventions:</p>
+          <div class="row">
+            {% for i in interventions %}
+            <div class="col-6">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="interventions"
+                       value="{{ i }}" id="nint{{ loop.index }}"
+                       {% if open_pass.extra_data and i in (open_pass.extra_data.get('interventions') or []) %}checked{% endif %}>
+                <label class="form-check-label small" for="nint{{ loop.index }}">{{ i }}</label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <label class="form-label fw-semibold small mt-3 mb-1">Nurse notes</label>
+          <textarea class="form-control form-control-sm" name="nurse_notes" rows="3"
+                    placeholder="What was done, recommendations, parent contacted, etc.">{{ (open_pass.extra_data or {}).get('nurse_notes', '') }}</textarea>
+        </div>
+        <button class="btn btn-outline-primary w-100 py-2 mb-2"
+                type="submit" name="action" value="save">💾 Save info (student stays)</button>
+        <button class="btn btn-success btn-lg w-100 py-3"
+                type="submit" name="action" value="save_and_log_in">✅ Save & Log Back to Class</button>
+      </form>
+      {% else %}
       <form method="POST" action="{{ url_for('main.log_in', pass_id=open_pass.id) }}">
         <button class="btn btn-success btn-lg w-100 py-3">✅ Log Back In</button>
       </form>
+      {% endif %}
 
       {% else %}
       {# ── Student is IN — select pass type and log out ── #}
