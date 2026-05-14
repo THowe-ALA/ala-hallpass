@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}🚨 SECURE — {{ c.student.full_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-md-6 col-lg-5">
+
+  <div class="card shadow text-center" style="border-top: 6px solid #dc3545">
+    <div class="card-body py-4 px-4">
+
+      <div style="font-size:4rem;line-height:1">🚨</div>
+
+      <p class="text-uppercase fw-bold small text-danger mt-2 mb-1" style="letter-spacing:2px">
+        SECURE
+      </p>
+
+      <h3 class="mb-0">{{ c.student.full_name }}</h3>
+      <div class="text-muted mb-3">Grade {{ c.student.grade }}</div>
+
+      <div style="font-size:2.4rem;font-weight:700;color:#dc3545">
+        {{ now.strftime('%I:%M %p') }}
+      </div>
+      <div class="text-muted small mb-3">
+        Logged with {{ c.teacher.name }}
+      </div>
+
+      <div class="alert alert-danger py-2 mb-0">
+        Student is logged as <strong>safe with you</strong>.
+      </div>
+    </div>
+  </div>
+
+  <a href="{{ url_for('main.dashboard') }}"
+     class="btn btn-danger btn-lg w-100 mt-3 py-3 fw-bold">
+    📷 Scan Next Student
+  </a>
+
+</div>
+</div>
+{% endblock %}

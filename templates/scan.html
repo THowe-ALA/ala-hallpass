@@ -5,6 +5,15 @@
 <div class="row justify-content-center">
 <div class="col-md-6 col-lg-5">
 
+  <form method="POST" action="{{ url_for('main.emergency_checkin', student_id=student.id) }}" class="mb-3">
+    <button class="btn btn-danger w-100 py-2 fw-bold" type="submit">
+      🚨 Emergency: Mark {{ student.first_name }} SECURE with me
+    </button>
+    <div class="text-muted small text-center mt-1">
+      Use during a fire drill or lockdown to log this student as being in your care.
+    </div>
+  </form>
+
   {% if recent_flag or frequent_flag %}
   <div class="alert alert-danger py-2 mb-3">
     {% if recent_flag   %}<div>⚠️ <strong>Used a pass in the last hour</strong></div>{% endif %}

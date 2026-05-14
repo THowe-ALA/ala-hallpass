@@ -49,14 +49,17 @@ def create_app():
         return User.query.get(int(user_id))
 
     from auth   import auth_bp
-    from routes import main_bp, is_nurse_viewer
+    from routes import main_bp, is_nurse_viewer, is_emergency_viewer
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
 
     @app.context_processor
     def inject_globals():
         from flask_login import current_user
-        return {'is_nurse_viewer': is_nurse_viewer(current_user)}
+        return {
+            'is_nurse_viewer':     is_nurse_viewer(current_user),
+            'is_emergency_viewer': is_emergency_viewer(current_user),
+        }
 
     with app.app_context():
         db.create_all()

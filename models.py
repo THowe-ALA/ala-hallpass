@@ -52,3 +52,14 @@ class Pass(db.Model):
 
     student = db.relationship('Student', backref='passes')
     teacher = db.relationship('User',    backref='passes_given')
+
+
+class EmergencyCheckin(db.Model):
+    __tablename__ = 'emergency_checkins'
+    id         = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'),    nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    student = db.relationship('Student', backref='emergency_checkins')
+    teacher = db.relationship('User',    backref='emergency_checkins_made')

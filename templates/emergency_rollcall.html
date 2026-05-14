@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}🚨 Emergency Roll Call{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">🚨 Emergency Roll Call</h4>
+  <a href="{{ url_for('main.emergency_rollcall_csv', window=window) }}"
+     class="btn btn-sm btn-success">⬇️ Download CSV</a>
+</div>
+
+<div class="alert alert-warning py-2 mb-3">
+  Showing students scanned in the last
+  <strong>{{ window }} minutes</strong>
+  &nbsp;|&nbsp; As of {{ now.strftime('%I:%M:%S %p') }}
+  &nbsp;|&nbsp;
+  <a href="javascript:location.reload()">🔄 Refresh</a>
+</div>
+
+<form method="GET" class="row g-2 mb-4 no-print">
+  <div class="col-auto">
+    <label class="col-form-label col-form-label-sm">Window (minutes):</label>
+  </div>
+  <div class="col-auto">
+    <input type="number" name="window" min="1" max="720" class="form-control form-control-sm" value="{{ window }}" style="width:90px">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary">Apply</button>
+    <a href="{{ url_for('main.emergency_rollcall') }}?window=10"  class="btn btn-sm btn-outline-secondary">10m</a>
+    <a href="{{ url_for('main.emergency_rollcall') }}?window=30"  class="btn btn-sm btn-outline-secondary">30m</a>
+    <a href="{{ url_for('main.emergency_rollcall') }}?window=60"  class="btn btn-sm btn-outline-secondary">60m</a>
+  </div>
+</form>
+
+<div class="row">
+  <div class="col-lg-7 mb-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-success text-white fw-semibold">
+        ✅ SECURE — {{ accounted | length }} accounted for
+      </div>
+      <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Student</th>
+            <th>Grade</th>
+            <th>With (Adult)</th>
+            <th class="text-end">When</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in accounted %}
+          <tr>
+            <td>{{ a.student.full_name }}</td>
+            <td>{{ a.student.grade }}</td>
+            <td>{{ a.teacher.name }}</td>
+            <td class="text-end small">
+              {{ a.checked_at.strftime('%I:%M %p') }}
+              <div class="text-muted">{{ a.minutes_ago }} min ago</div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not accounted %}
+          <tr><td colspan="4" class="text-center text-muted py-4">No check-ins in this window.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5 mb-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-danger text-white fw-semibold">
+        ❓ NOT YET ACCOUNTED FOR — {{ unaccounted | length }}
+      </div>
+      <div class="card-body p-2" style="max-height:60vh;overflow-y:auto">
+        <p class="text-muted small mb-2 px-2">
+          Cross-check these against today's attendance roster — students absent today shouldn't be expected.
+        </p>
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Student</th><th>Grade</th></tr>
+          </thead>
+          <tbody>
+            {% for s in unaccounted %}
+            <tr>
+              <td>{{ s.full_name }}</td>
+              <td>{{ s.grade }}</td>
+            </tr>
+            {% endfor %}
+            {% if not unaccounted %}
+            <tr><td colspan="2" class="text-center text-muted py-4">Everyone is secure. ✅</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  setTimeout(() => location.reload(), 20000);
+</script>
+{% endblock %}

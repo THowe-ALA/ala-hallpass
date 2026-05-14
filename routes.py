@@ -8,7 +8,7 @@ from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
 from flask_login import login_required, current_user
 from app import db
-from models import User, Student, TeacherStudent, Pass
+from models import User, Student, TeacherStudent, Pass, EmergencyCheckin
 
 main_bp = Blueprint('main', __name__)
 
@@ -58,6 +58,28 @@ def nurse_viewer_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not is_nurse_viewer(current_user):
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _emergency_viewer_emails():
+    raw = os.environ.get('EMERGENCY_VIEWERS', '')
+    return {e.strip().lower() for e in raw.split(',') if e.strip()}
+
+
+def is_emergency_viewer(user):
+    if not user or not user.is_authenticated:
+        return False
+    if user.role == 'admin':
+        return True
+    return (user.email or '').strip().lower() in _emergency_viewer_emails()
+
+
+def emergency_viewer_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_emergency_viewer(current_user):
             abort(403)
         return f(*args, **kwargs)
     return decorated
@@ -680,6 +702,111 @@ def promote(user_id):
     db.session.commit()
     flash(f'{user.name} is now an admin.')
     return redirect(url_for('main.admin'))
+
+
+@main_bp.route('/emergency/checkin/<int:student_id>', methods=['POST'])
+@login_required
+def emergency_checkin(student_id):
+    student = Student.query.get_or_404(student_id)
+    c = EmergencyCheckin(student_id=student.id, teacher_id=current_user.id)
+    db.session.add(c)
+    db.session.commit()
+    return redirect(url_for('main.emergency_confirm', checkin_id=c.id))
+
+
+@main_bp.route('/emergency/confirm/<int:checkin_id>')
+@login_required
+def emergency_confirm(checkin_id):
+    c = EmergencyCheckin.query.get_or_404(checkin_id)
+    now_local = datetime.now(TZ)
+    return render_template('emergency_confirm.html', c=c, now=now_local)
+
+
+def _accounted_for(window_minutes):
+    """Return (accounted_rows, unaccounted_students).
+
+    accounted_rows: list of dicts {student, teacher, checked_at_local, minutes_ago}
+                    one row per student — their MOST RECENT check-in in the window.
+    unaccounted_students: students that exist but have no check-in inside the window.
+    """
+    cutoff_utc = datetime.utcnow() - timedelta(minutes=window_minutes)
+    rows = (EmergencyCheckin.query
+            .filter(EmergencyCheckin.created_at >= cutoff_utc)
+            .order_by(EmergencyCheckin.created_at.desc())
+            .all())
+
+    seen = {}                                  # student_id -> most recent EmergencyCheckin
+    for r in rows:
+        if r.student_id not in seen:
+            seen[r.student_id] = r
+
+    now_utc = datetime.utcnow()
+    accounted = []
+    for sid, r in seen.items():
+        minutes_ago = int((now_utc - r.created_at).total_seconds() // 60)
+        local_dt    = pytz.utc.localize(r.created_at).astimezone(TZ)
+        accounted.append({
+            'student':     r.student,
+            'teacher':     r.teacher,
+            'checked_at':  local_dt,
+            'minutes_ago': minutes_ago,
+        })
+    accounted.sort(key=lambda d: d['student'].last_name.lower())
+
+    accounted_ids = set(seen.keys())
+    unaccounted_q = Student.query
+    if accounted_ids:
+        unaccounted_q = unaccounted_q.filter(~Student.id.in_(accounted_ids))
+    unaccounted = unaccounted_q.order_by(Student.last_name, Student.first_name).all()
+    return accounted, unaccounted
+
+
+@main_bp.route('/emergency/rollcall')
+@login_required
+@emergency_viewer_required
+def emergency_rollcall():
+    try:
+        window = int(request.args.get('window', 30))
+    except ValueError:
+        window = 30
+    window = max(1, min(window, 720))          # 1 min .. 12 hr
+
+    accounted, unaccounted = _accounted_for(window)
+    return render_template('emergency_rollcall.html',
+        accounted=accounted, unaccounted=unaccounted,
+        window=window, now=datetime.now(TZ))
+
+
+@main_bp.route('/emergency/rollcall.csv')
+@login_required
+@emergency_viewer_required
+def emergency_rollcall_csv():
+    from flask import Response
+    try:
+        window = int(request.args.get('window', 30))
+    except ValueError:
+        window = 30
+    window = max(1, min(window, 720))
+
+    accounted, unaccounted = _accounted_for(window)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['Status', 'Student', 'Grade',
+                     'Last Seen With (Adult)', 'Checked In At', 'Minutes Ago'])
+    for a in accounted:
+        writer.writerow(['Secure', a['student'].full_name, a['student'].grade,
+                         a['teacher'].name,
+                         a['checked_at'].strftime('%Y-%m-%d %I:%M %p'),
+                         a['minutes_ago']])
+    for s in unaccounted:
+        writer.writerow(['Unaccounted', s.full_name, s.grade, '', '', ''])
+
+    ts = datetime.now(TZ).strftime('%Y-%m-%d_%H%M')
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="rollcall_{ts}.csv"'},
+    )
 
 
 def _nurse_passes_query():
