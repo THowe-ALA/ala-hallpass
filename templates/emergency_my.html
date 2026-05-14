@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}🚨 My Roll Call{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">🚨 My Roll Call</h4>
+  <div class="text-muted small">{{ now.strftime('%I:%M %p') }}</div>
+</div>
+
+<div class="alert alert-warning py-2 mb-3 small">
+  Tap <strong>Secure</strong> next to each student in your room. They'll appear on the
+  Admin/Front-Office Roll Call instantly. <br>
+  For students <em>not</em> on your roster who ended up in your room, use the regular
+  scan flow with the red "Mark Secure" button on the scan page.
+</div>
+
+{# Period filter chips #}
+<div class="mb-3 no-print">
+  {% for value, label, count in chips %}
+  <a href="?period={{ value }}"
+     class="btn btn-sm me-1 mb-1 {{ 'btn-dark' if active_period == value else 'btn-outline-secondary' }}">
+    {{ label }} <span class="badge bg-light text-dark ms-1">{{ count }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span>{{ rows | length }} student(s) on this list</span>
+    <span class="small text-muted">
+      <span id="secure-count">{{ rows | selectattr('secure') | list | length }}</span> secure
+    </span>
+  </div>
+  <ul class="list-group list-group-flush" id="roster-list">
+    {% for r in rows %}
+    <li class="list-group-item d-flex justify-content-between align-items-center {{ 'list-group-item-success' if r.secure }}"
+        id="row-{{ r.student.id }}">
+      <div>
+        <div class="fw-semibold">{{ r.student.full_name }}</div>
+        <div class="small text-muted">
+          Grade {{ r.student.grade }}
+          {% if r.period %} · {{ r.period }}{% endif %}
+        </div>
+        <div class="small secure-detail" {% if not r.secure %}style="display:none"{% endif %}>
+          ✅ Secure with
+          <span class="secure-with">{{ r.secure.teacher if r.secure else '' }}</span>
+          at <span class="secure-time">{{ r.secure.checked_at if r.secure else '' }}</span>
+        </div>
+      </div>
+      <form method="POST"
+            action="{{ url_for('main.emergency_checkin', student_id=r.student.id) }}"
+            class="secure-form"
+            data-student-id="{{ r.student.id }}">
+        <input type="hidden" name="return_to" value="roster">
+        <input type="hidden" name="period" value="{{ active_period }}">
+        <button type="submit"
+                class="btn {{ 'btn-success' if r.secure else 'btn-outline-success' }} btn-sm secure-btn">
+          {% if r.secure %}✓ Secure{% else %}Secure{% endif %}
+        </button>
+      </form>
+    </li>
+    {% endfor %}
+    {% if not rows %}
+    <li class="list-group-item text-center text-muted py-4">
+      No students on your roster for this filter.
+    </li>
+    {% endif %}
+  </ul>
+</div>
+
+{% if is_emergency_viewer %}
+<div class="mt-3 text-center no-print">
+  <a href="{{ url_for('main.emergency_rollcall') }}" class="btn btn-sm btn-outline-dark">
+    See school-wide Roll Call →
+  </a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const countEl = document.getElementById('secure-count');
+
+  document.querySelectorAll('.secure-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('.secure-btn');
+      const row = form.closest('li');
+      const detail = row.querySelector('.secure-detail');
+
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      try {
+        const resp = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'fetch' },
+          body: new FormData(form),
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        const wasSecure = row.classList.contains('list-group-item-success');
+        row.classList.add('list-group-item-success');
+        btn.classList.remove('btn-outline-success');
+        btn.classList.add('btn-success');
+        btn.textContent = '✓ Secure';
+        btn.disabled = false;
+
+        detail.style.display = '';
+        detail.querySelector('.secure-with').textContent = data.teacher;
+        detail.querySelector('.secure-time').textContent = data.checked_at;
+
+        if (!wasSecure) {
+          countEl.textContent = (parseInt(countEl.textContent, 10) || 0) + 1;
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+        btn.classList.remove('btn-outline-success', 'btn-success');
+        btn.classList.add('btn-warning');
+        console.error(err);
+      }
+    });
+  });
+</script>
+{% endblock %}

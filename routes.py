@@ -711,6 +711,20 @@ def emergency_checkin(student_id):
     c = EmergencyCheckin(student_id=student.id, teacher_id=current_user.id)
     db.session.add(c)
     db.session.commit()
+
+    if request.headers.get('X-Requested-With') == 'fetch':
+        from flask import jsonify
+        return jsonify({
+            'ok': True,
+            'checkin_id':  c.id,
+            'student_id':  student.id,
+            'teacher':     current_user.name,
+            'checked_at':  pytz.utc.localize(c.created_at).astimezone(TZ).strftime('%I:%M %p'),
+        })
+
+    if request.form.get('return_to') == 'roster':
+        return redirect(url_for('main.emergency_my', period=request.form.get('period') or None))
+
     return redirect(url_for('main.emergency_confirm', checkin_id=c.id))
 
 
@@ -759,6 +773,67 @@ def _accounted_for(window_minutes):
         unaccounted_q = unaccounted_q.filter(~Student.id.in_(accounted_ids))
     unaccounted = unaccounted_q.order_by(Student.last_name, Student.first_name).all()
     return accounted, unaccounted
+
+
+@main_bp.route('/emergency/my')
+@login_required
+def emergency_my():
+    now_local = datetime.now(TZ)
+    period_arg = request.args.get('period')
+    if period_arg is None:                    # not specified → auto-detect
+        detected = get_period(now_local)
+        period_arg = detected if detected != 'Outside School Hours' else '__all__'
+
+    try:
+        window = int(request.args.get('window', 30))
+    except ValueError:
+        window = 30
+    window = max(1, min(window, 720))
+
+    q = (db.session.query(Student, TeacherStudent.period)
+         .join(TeacherStudent, Student.id == TeacherStudent.student_id)
+         .filter(TeacherStudent.teacher_id == current_user.id))
+    if period_arg and period_arg != '__all__':
+        if period_arg == '__none__':
+            q = q.filter(TeacherStudent.period.is_(None))
+        else:
+            q = q.filter(TeacherStudent.period == period_arg)
+
+    roster = q.order_by(Student.last_name, Student.first_name).all()
+
+    cutoff_utc = datetime.utcnow() - timedelta(minutes=window)
+    recent = (EmergencyCheckin.query
+              .filter(EmergencyCheckin.created_at >= cutoff_utc)
+              .order_by(EmergencyCheckin.created_at.desc())
+              .all())
+    latest_by_student = {}
+    for r in recent:
+        if r.student_id not in latest_by_student:
+            latest_by_student[r.student_id] = r
+
+    rows = []
+    for s, p in roster:
+        r = latest_by_student.get(s.id)
+        secure_info = None
+        if r:
+            local_dt = pytz.utc.localize(r.created_at).astimezone(TZ)
+            mins_ago = int((datetime.utcnow() - r.created_at).total_seconds() // 60)
+            secure_info = {
+                'teacher':     r.teacher.name,
+                'is_mine':     (r.teacher_id == current_user.id),
+                'checked_at':  local_dt.strftime('%I:%M %p'),
+                'minutes_ago': mins_ago,
+            }
+        rows.append({'student': s, 'period': p, 'secure': secure_info})
+
+    chips = _period_chips_for_teacher(current_user.id)
+    chips_with_all = [('__all__', 'All my students',
+                       sum(c[2] for c in chips if c[0] is not None and c[0] != '__none__'))]
+    chips_with_all.extend([c for c in chips if c[0] is not None])
+
+    return render_template('emergency_my.html',
+        rows=rows, chips=chips_with_all,
+        active_period=period_arg, window=window, now=now_local)
 
 
 @main_bp.route('/emergency/rollcall')

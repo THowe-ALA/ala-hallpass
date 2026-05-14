@@ -26,8 +26,9 @@
       {% if is_nurse_viewer %}
       <a href="{{ url_for('main.nurse_log') }}" class="btn btn-sm btn-info">🩺 Nurse Log</a>
       {% endif %}
+      <a href="{{ url_for('main.emergency_my') }}" class="btn btn-sm btn-outline-danger">🚨 My Roll Call</a>
       {% if is_emergency_viewer %}
-      <a href="{{ url_for('main.emergency_rollcall') }}" class="btn btn-sm btn-danger">🚨 Roll Call</a>
+      <a href="{{ url_for('main.emergency_rollcall') }}" class="btn btn-sm btn-danger">🚨 School</a>
       {% endif %}
       <a href="{{ url_for('main.students') }}"  class="btn btn-sm btn-outline-light">Roster</a>
       <a href="{{ url_for('main.print_cards') }}" class="btn btn-sm btn-outline-light">Print</a>
