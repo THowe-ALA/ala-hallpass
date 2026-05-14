@@ -54,6 +54,9 @@
       {% if p.extra_data and p.extra_data.get('destination_teacher') %}
       <div class="text-muted small">→ {{ p.extra_data.destination_teacher }}</div>
       {% endif %}
+      {% if p.extra_data and p.extra_data.get('destination_staff') %}
+      <div class="text-muted small">→ {{ p.extra_data.destination_staff }}</div>
+      {% endif %}
       {% if p.extra_data and p.extra_data.get('releasing_teacher') %}
       <div class="text-muted small">Released by {{ p.extra_data.releasing_teacher }}</div>
       {% endif %}

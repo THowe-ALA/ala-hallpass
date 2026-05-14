@@ -18,13 +18,15 @@ SYMPTOMS     = ['Headache', 'Dizziness', 'Bleeding', 'Stomachache',
                 'Shortness of breath', 'Nausea', 'Fever']
 INTERVENTIONS = ['Bandaid', 'Water', 'Put head down', 'Saltines', 'Mint', 'Ice pack']
 PASS_TYPES   = [
-    ('restroom',      'Restroom'),
-    ('nurse',         'Nurse'),
-    ('office',        'Office'),
-    ('late',          'Late Departure'),
-    ('teacher_visit', 'Going to Another Teacher'),
+    ('restroom',         'Restroom'),
+    ('nurse',            'Nurse'),
+    ('office',           'Office'),
+    ('student_services', 'Student Services'),
+    ('late',             'Late Departure'),
+    ('teacher_visit',    'Going to Another Teacher'),
 ]
 PASS_LABELS  = dict(PASS_TYPES)
+STUDENT_SERVICES_STAFF = ['Grace Wood', 'Maizey Clark', 'Melissa Molina Garcia', 'Other']
 PERIODS      = ['Zero Period', 'Leadership Period', '1st Period', '2nd Period',
                 '3rd Period', '4th / Lunch / 5th', '6th Period', '7th Period',
                 'Outside School Hours']
@@ -297,7 +299,8 @@ def scan(token):
         same_period_flag=same_period_flag, current_period=current_period,
         today_count=today_count, duration_so_far=duration_so_far,
         pass_types=PASS_TYPES, symptoms=SYMPTOMS,
-        interventions=INTERVENTIONS, now=now_local)
+        interventions=INTERVENTIONS,
+        student_services_staff=STUDENT_SERVICES_STAFF, now=now_local)
 
 
 @main_bp.route('/log_out/<int:student_id>', methods=['POST'])
@@ -316,6 +319,11 @@ def log_out(student_id):
         extra['destination_teacher'] = request.form.get('destination_teacher', '').strip()
     elif pass_type == 'late':
         extra['releasing_teacher'] = request.form.get('releasing_teacher', '').strip()
+    elif pass_type == 'student_services':
+        choice = request.form.get('destination_staff', '').strip()
+        if choice == 'Other':
+            choice = request.form.get('destination_staff_other', '').strip() or 'Other'
+        extra['destination_staff'] = choice
 
     p = Pass(
         student_id=student.id,
