@@ -54,6 +54,12 @@ class Pass(db.Model):
     teacher = db.relationship('User',    backref='passes_given')
 
 
+class Config(db.Model):
+    __tablename__ = 'config'
+    key   = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.String(500), nullable=False)
+
+
 class EmergencyCheckin(db.Model):
     __tablename__ = 'emergency_checkins'
     id         = db.Column(db.Integer, primary_key=True)

@@ -117,6 +117,34 @@
   </div>
 </div>
 
+{# ── Hallway cap ── #}
+<div class="card mt-4 no-print">
+  <div class="card-header fw-semibold">Hallway Cap</div>
+  <div class="card-body">
+    <div class="mb-2">
+      <span class="badge {{ 'bg-danger' if hallway_count >= hallway_max else 'bg-secondary' }}">
+        {{ hallway_count }} / {{ hallway_max }}
+      </span>
+      <span class="text-muted small ms-2">students currently out on Restroom or Late passes</span>
+    </div>
+    <form method="POST" action="{{ url_for('main.set_hallway_max') }}" class="row g-2 align-items-center">
+      <div class="col-auto">
+        <label class="col-form-label col-form-label-sm">Max students in hallway:</label>
+      </div>
+      <div class="col-auto">
+        <input type="number" name="hallway_max" min="1" max="500"
+               class="form-control form-control-sm" value="{{ hallway_max }}" style="width:90px">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Save</button>
+      </div>
+      <div class="col">
+        <small class="text-muted">When the count reaches this number, teachers see a red warning on the scan page asking them to wait before releasing more students.</small>
+      </div>
+    </form>
+  </div>
+</div>
+
 {# ── Staff list / promote ── #}
 <div class="card mt-4 no-print">
   <div class="card-header fw-semibold">Staff Accounts</div>

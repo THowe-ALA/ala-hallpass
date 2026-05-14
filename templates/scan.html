@@ -5,6 +5,13 @@
 <div class="row justify-content-center">
 <div class="col-md-6 col-lg-5">
 
+  {% if hallway_count is defined and hallway_count >= hallway_max %}
+  <div class="alert alert-danger fw-bold py-2 mb-3 text-center">
+    🚧 {{ hallway_count }} students in the hallway (cap: {{ hallway_max }}).<br>
+    <span class="fw-normal small">Please wait until the count drops before releasing another student to the restroom.</span>
+  </div>
+  {% endif %}
+
   <form method="POST" action="{{ url_for('main.emergency_checkin', student_id=student.id) }}" class="mb-3">
     <button class="btn btn-danger w-100 py-2 fw-bold" type="submit">
       🚨 Emergency: Mark {{ student.first_name }} SECURE with me

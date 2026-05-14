@@ -8,7 +8,10 @@ from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
 from flask_login import login_required, current_user
 from app import db
-from models import User, Student, TeacherStudent, Pass, EmergencyCheckin
+from models import User, Student, TeacherStudent, Pass, EmergencyCheckin, Config
+
+HALLWAY_PASS_TYPES = ('restroom', 'late')
+DEFAULT_HALLWAY_MAX = 25
 
 main_bp = Blueprint('main', __name__)
 
@@ -74,6 +77,35 @@ def is_emergency_viewer(user):
     if user.role == 'admin':
         return True
     return (user.email or '').strip().lower() in _emergency_viewer_emails()
+
+
+def get_config(key, default=None):
+    row = Config.query.get(key)
+    return row.value if row else default
+
+
+def set_config(key, value):
+    row = Config.query.get(key)
+    if row:
+        row.value = str(value)
+    else:
+        db.session.add(Config(key=key, value=str(value)))
+    db.session.commit()
+
+
+def get_hallway_max():
+    try:
+        return int(get_config('hallway_max', DEFAULT_HALLWAY_MAX))
+    except (TypeError, ValueError):
+        return DEFAULT_HALLWAY_MAX
+
+
+def count_students_in_hallway():
+    return (Pass.query
+            .filter(Pass.pass_type.in_(HALLWAY_PASS_TYPES))
+            .filter(Pass.time_out.isnot(None))
+            .filter(Pass.time_in.is_(None))
+            .count())
 
 
 def emergency_viewer_required(f):
@@ -315,6 +347,8 @@ def scan(token):
     if open_pass:
         duration_so_far = int((datetime.utcnow() - open_pass.time_out).total_seconds() // 60)
 
+    hallway_count = count_students_in_hallway()
+    hallway_max   = get_hallway_max()
     return render_template('scan.html',
         student=student, open_pass=open_pass,
         recent_flag=recent_flag, frequent_flag=frequent_flag,
@@ -322,7 +356,9 @@ def scan(token):
         today_count=today_count, duration_so_far=duration_so_far,
         pass_types=PASS_TYPES, symptoms=SYMPTOMS,
         interventions=INTERVENTIONS,
-        student_services_staff=STUDENT_SERVICES_STAFF, now=now_local)
+        student_services_staff=STUDENT_SERVICES_STAFF,
+        hallway_count=hallway_count, hallway_max=hallway_max,
+        now=now_local)
 
 
 @main_bp.route('/log_out/<int:student_id>', methods=['POST'])
@@ -690,7 +726,25 @@ def admin():
     return render_template('admin.html',
         passes=passes, frequent=frequent,
         date_str=date_str, student_q=student_q, period_f=period_f,
-        periods=PERIODS, pass_labels=PASS_LABELS, all_users=all_users)
+        periods=PERIODS, pass_labels=PASS_LABELS, all_users=all_users,
+        hallway_max=get_hallway_max(), hallway_count=count_students_in_hallway())
+
+
+@main_bp.route('/admin/hallway_max', methods=['POST'])
+@login_required
+@admin_required
+def set_hallway_max():
+    try:
+        n = int(request.form.get('hallway_max', ''))
+    except ValueError:
+        flash('Hallway max must be a number.')
+        return redirect(url_for('main.admin'))
+    if n < 1 or n > 500:
+        flash('Hallway max must be between 1 and 500.')
+        return redirect(url_for('main.admin'))
+    set_config('hallway_max', n)
+    flash(f'Hallway cap set to {n}.')
+    return redirect(url_for('main.admin'))
 
 
 @main_bp.route('/admin/promote/<int:user_id>', methods=['POST'])
