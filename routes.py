@@ -672,22 +672,35 @@ def remove_student(student_id):
     return redirect(url_for('main.students'))
 
 
+def _print_roster(period_arg):
+    # Admin with no period filter gets the full-school sheet;
+    # otherwise filter to the current teacher's roster (optionally by period).
+    if current_user.role == 'admin' and not period_arg:
+        return Student.query.order_by(Student.last_name, Student.first_name).all()
+    q = (db.session.query(Student)
+         .join(TeacherStudent, Student.id == TeacherStudent.student_id)
+         .filter(TeacherStudent.teacher_id == current_user.id))
+    q = _apply_period_filter(q, period_arg)
+    return q.order_by(Student.last_name, Student.first_name).all()
+
+
 @main_bp.route('/print')
 @login_required
 def print_cards():
     period_arg = request.args.get('period') or None
-    # Admin with no period filter keeps the full-school card sheet;
-    # otherwise filter to the current teacher's roster (optionally by period).
-    if current_user.role == 'admin' and not period_arg:
-        roster = Student.query.order_by(Student.last_name, Student.first_name).all()
-    else:
-        q = (db.session.query(Student)
-             .join(TeacherStudent, Student.id == TeacherStudent.student_id)
-             .filter(TeacherStudent.teacher_id == current_user.id))
-        q = _apply_period_filter(q, period_arg)
-        roster = q.order_by(Student.last_name, Student.first_name).all()
+    roster   = _print_roster(period_arg)
     base_url = os.environ.get('BASE_URL', request.host_url.rstrip('/'))
     return render_template('print_cards.html', roster=roster, base_url=base_url,
+                           filter_period=period_arg)
+
+
+@main_bp.route('/print/stickers')
+@login_required
+def print_stickers():
+    period_arg = request.args.get('period') or None
+    roster   = _print_roster(period_arg)
+    base_url = os.environ.get('BASE_URL', request.host_url.rstrip('/'))
+    return render_template('print_stickers.html', roster=roster, base_url=base_url,
                            filter_period=period_arg)
 
 

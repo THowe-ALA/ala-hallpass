@@ -9,24 +9,18 @@
     .container { max-width: 100%; padding: 0; }
   }
   .card-grid  { display: flex; flex-wrap: wrap; gap: 0.2in; }
-  .card-pair  {
-    display: flex; align-items: stretch;
-    background: white; border: 1px solid #ccc;
-    page-break-inside: avoid; break-inside: avoid;
-  }
   .pass-card  {
-    width: 1.75in; min-height: 3.5in; padding: 0.15in 0.1in;
+    width: 1.75in; min-height: 3.0in; padding: 0.15in 0.1in;
+    background: white; border: 1px solid #ccc;
     display: flex; flex-direction: column;
     align-items: center; justify-content: space-between;
     text-align: center;
+    page-break-inside: avoid; break-inside: avoid;
   }
-  .fold-line  { width: 0; border-left: 2px dashed #aaa; margin: 0.1in 0; flex-shrink: 0; }
   .card-name  { font-size: 11pt; font-weight: 700; line-height: 1.25; word-break: break-word; }
   .card-grade { font-size: 9pt; color: #555; margin-top: 2px; }
-  .qr-img     { width: 1.45in; height: 1.45in; display: block; }
-  .card-label { font-size: 16pt; font-weight: 700; letter-spacing: 1px; }
-  .in-label   { color: #198754; }
-  .out-label  { color: #dc3545; }
+  .qr-img     { width: 1.55in; height: 1.55in; display: block; }
+  .card-foot  { font-size: 8pt; color: #888; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-2 no-print">
@@ -34,11 +28,14 @@
     Print Hall Pass Cards
     {% if filter_period %}<span class="text-muted fs-6">— {{ filter_period }} only</span>{% endif %}
   </h4>
-  <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.print_stickers', period=filter_period) }}" class="btn btn-outline-secondary">🏷 ID Stickers instead</a>
+    <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>
+  </div>
 </div>
 <p class="text-muted small mb-3 no-print">
-  Fold each pair on the dashed line — IN on front, OUT on back. Laminate after folding.
-  Wait for all QR codes to load before printing.
+  One QR per student — scan it to log out or back in (the app auto-detects).
+  Laminate after printing. Wait for all QR codes to load before printing.
   {% if filter_period %}
   <a href="{{ url_for('main.print_cards') }}" class="ms-2">Print full roster instead</a>
   {% endif %}
@@ -46,23 +43,15 @@
 
 <div class="card-grid">
 {% for s in roster %}
-  {% set scan_base = base_url + '/scan/' + s.token %}
-  {% set out_qr = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + (scan_base + '?dir=out') | urlencode %}
-  {% set in_qr  = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + (scan_base + '?dir=in')  | urlencode %}
-  <div class="card-pair">
-    <div class="pass-card">
+  {% set scan_url = base_url + '/scan/' + s.token %}
+  {% set qr_src = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + scan_url | urlencode %}
+  <div class="pass-card">
+    <div>
       <div class="card-name">{{ s.full_name }}</div>
       <div class="card-grade">Grade {{ s.grade }}</div>
-      <img class="qr-img" src="{{ in_qr }}"  alt="IN QR">
-      <div class="card-label in-label">IN</div>
     </div>
-    <div class="fold-line"></div>
-    <div class="pass-card">
-      <div class="card-name">{{ s.full_name }}</div>
-      <div class="card-grade">Grade {{ s.grade }}</div>
-      <img class="qr-img" src="{{ out_qr }}" alt="OUT QR">
-      <div class="card-label out-label">OUT</div>
-    </div>
+    <img class="qr-img" src="{{ qr_src }}" alt="Scan QR for {{ s.full_name }}">
+    <div class="card-foot">Hall Pass</div>
   </div>
 {% else %}
   <p class="text-muted">No students on your roster yet.</p>

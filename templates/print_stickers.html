@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Print ID Stickers — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<style>
+  @media print {
+    @page { size: letter portrait; margin: 0.3in; }
+    nav, .no-print { display: none !important; }
+    .container { max-width: 100%; padding: 0; }
+  }
+  .sticker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.12in;
+  }
+  .sticker {
+    border: 1px dashed #bbb;
+    padding: 0.08in 0.05in;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .sticker-qr   { width: 1.1in; height: 1.1in; display: block; }
+  .sticker-name { font-size: 8pt; font-weight: 700; margin-top: 2px; line-height: 1.15; word-break: break-word; }
+  .sticker-grade{ font-size: 7pt; color: #555; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-2 no-print">
+  <h4 class="mb-0">
+    Print ID Stickers
+    {% if filter_period %}<span class="text-muted fs-6">— {{ filter_period }} only</span>{% endif %}
+  </h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.print_cards', period=filter_period) }}" class="btn btn-outline-secondary">🪪 Lanyard cards instead</a>
+    <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>
+  </div>
+</div>
+<p class="text-muted small mb-3 no-print">
+  4-column grid (~32 per page). Print on sticker paper and cut to size, or trim and tape onto student IDs.
+  Wait for all QR codes to load before printing.
+  {% if filter_period %}
+  <a href="{{ url_for('main.print_stickers') }}" class="ms-2">Print full roster instead</a>
+  {% endif %}
+</p>
+
+<div class="sticker-grid">
+{% for s in roster %}
+  {% set scan_url = base_url + '/scan/' + s.token %}
+  {% set qr_src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + scan_url | urlencode %}
+  <div class="sticker">
+    <img class="sticker-qr" src="{{ qr_src }}" alt="Scan QR for {{ s.full_name }}">
+    <div class="sticker-name">{{ s.full_name }}</div>
+    <div class="sticker-grade">Gr {{ s.grade }}</div>
+  </div>
+{% else %}
+  <p class="text-muted">No students on your roster yet.</p>
+{% endfor %}
+</div>
+{% endblock %}
