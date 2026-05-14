@@ -21,6 +21,16 @@
     </div>
   </form>
 
+  {% if student.is_blocked %}
+  <div class="alert alert-danger py-3 mb-3 text-center border border-danger border-3">
+    <div class="fs-4 fw-bold">🚫 {{ student.first_name }} cannot leave the room without an adult escort.</div>
+    {% if student.block_note %}
+    <div class="mt-2 small"><strong>Admin note:</strong> {{ student.block_note }}</div>
+    {% endif %}
+    <div class="mt-2 small text-muted">Contact an administrator if {{ student.first_name }} needs to go somewhere.</div>
+  </div>
+  {% endif %}
+
   {% if recent_flag or frequent_flag %}
   <div class="alert alert-danger py-2 mb-3">
     {% if recent_flag   %}<div>⚠️ <strong>Used a pass in the last hour</strong></div>{% endif %}
@@ -108,6 +118,11 @@
       </form>
       {% endif %}
 
+      {% elif student.is_blocked %}
+      {# ── Student is IN but blocked — no pass form ── #}
+      <div class="text-center text-muted py-3">
+        Pass options are disabled while {{ student.first_name }} is blocked.
+      </div>
       {% else %}
       {# ── Student is IN — select pass type and log out ── #}
       <form method="POST" action="{{ url_for('main.log_out', student_id=student.id) }}">

@@ -74,6 +74,7 @@
         {% if rows is not none %}<th>Period</th>{% endif %}
         {% if rows is not none %}<th class="text-center">Times Out</th>{% endif %}
         <th>Quick Scan</th>
+        {% if view == 'all' %}<th>Block</th>{% endif %}
         {% if view != 'all' %}<th></th>{% endif %}
       </tr>
     </thead>
@@ -111,9 +112,15 @@
         {% endfor %}
       {% else %}
         {% for s in students %}
-        <tr {% if buddy_map and s.id in buddy_map %}class="table-warning"{% endif %}>
+        <tr {% if s.is_blocked %}class="table-danger"{% elif buddy_map and s.id in buddy_map %}class="table-warning"{% endif %}>
           <td>
             <strong>{{ s.full_name }}</strong>
+            {% if s.is_blocked %}
+            <span class="badge bg-danger ms-1"
+                  title="{{ s.block_note or 'Blocked from passes' }}">
+              🚫 Blocked{% if s.block_note %} — {{ s.block_note }}{% endif %}
+            </span>
+            {% endif %}
             {% if buddy_map and s.id in buddy_map %}
             <span class="badge bg-warning text-dark ms-1"
                   title="Buddies: {{ buddy_map[s.id] | join(', ') }}">
@@ -125,6 +132,23 @@
           <td>
             <a href="{{ url_for('main.scan', token=s.token) }}"
                class="btn btn-sm btn-outline-primary">Scan</a>
+          </td>
+          <td>
+            {% if s.is_blocked %}
+            <form method="POST" action="{{ url_for('main.unblock_student', student_id=s.id) }}"
+                  onsubmit="return confirm('Unblock {{ s.full_name }} and allow passes again?')">
+              <button class="btn btn-sm btn-outline-success">✅ Unblock</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('main.block_student', student_id=s.id) }}"
+                  class="d-flex gap-1"
+                  onsubmit="return confirm('Block {{ s.full_name }} from all passes? Teachers will see an escort warning when scanning.')">
+              <input type="text" name="block_note" maxlength="500"
+                     class="form-control form-control-sm" style="max-width:180px"
+                     placeholder="Note (optional)">
+              <button class="btn btn-sm btn-outline-danger">🚫 Block</button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

@@ -22,6 +22,8 @@ class Student(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name  = db.Column(db.String(100), nullable=False)
     grade      = db.Column(db.Integer, nullable=False)
+    is_blocked = db.Column(db.Boolean, nullable=False, default=False)
+    block_note = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property

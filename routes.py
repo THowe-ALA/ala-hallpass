@@ -365,6 +365,9 @@ def scan(token):
 @login_required
 def log_out(student_id):
     student   = Student.query.get_or_404(student_id)
+    if student.is_blocked:
+        flash(f'{student.full_name} is blocked from passes. Contact an administrator.')
+        return redirect(url_for('main.scan', token=student.token))
     now_utc   = datetime.utcnow()
     now_local = datetime.now(TZ)
     pass_type = request.form.get('pass_type', 'restroom')
@@ -756,6 +759,31 @@ def promote(user_id):
     db.session.commit()
     flash(f'{user.name} is now an admin.')
     return redirect(url_for('main.admin'))
+
+
+@main_bp.route('/admin/students/<int:student_id>/block', methods=['POST'])
+@login_required
+@admin_required
+def block_student(student_id):
+    student = Student.query.get_or_404(student_id)
+    note = (request.form.get('block_note') or '').strip()
+    student.is_blocked = True
+    student.block_note = note[:500] if note else None
+    db.session.commit()
+    flash(f'{student.full_name} is now blocked from passes.')
+    return redirect(url_for('main.students', view='all'))
+
+
+@main_bp.route('/admin/students/<int:student_id>/unblock', methods=['POST'])
+@login_required
+@admin_required
+def unblock_student(student_id):
+    student = Student.query.get_or_404(student_id)
+    student.is_blocked = False
+    student.block_note = None
+    db.session.commit()
+    flash(f'{student.full_name} is unblocked.')
+    return redirect(url_for('main.students', view='all'))
 
 
 @main_bp.route('/emergency/checkin/<int:student_id>', methods=['POST'])

@@ -80,6 +80,14 @@ def _apply_lightweight_migrations():
             # since that was the only class on the roster during initial testing.
             conn.execute(text("UPDATE teacher_students SET period = '1st Period' WHERE period IS NULL"))
 
+    student_cols = {c['name'] for c in inspector.get_columns('students')}
+    if 'is_blocked' not in student_cols:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE students ADD COLUMN is_blocked BOOLEAN NOT NULL DEFAULT FALSE'))
+    if 'block_note' not in student_cols:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE students ADD COLUMN block_note VARCHAR(500)'))
+
 
 app = create_app()
 
