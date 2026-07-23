@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
 from flask_login import login_required, current_user
+from sqlalchemy.exc import IntegrityError
 from app import db
 from models import User, Student, TeacherStudent, Pass, EmergencyCheckin, Config
 
@@ -106,6 +107,55 @@ def count_students_in_hallway():
             .filter(Pass.time_out.isnot(None))
             .filter(Pass.time_in.is_(None))
             .count())
+
+
+# ── Annual grade advancement (auto each July + manual admin button) ──────────
+
+_promo_done_year = {'value': None}  # process-local cache so we don't hit the DB every request
+
+
+def _advance_all_grades():
+    """Bump every student up one grade level, capped at 12 (grade 12 left unchanged).
+    Graduating seniors are deleted separately. Returns the number advanced."""
+    n = (Student.query
+         .filter(Student.grade < 12)
+         .update({Student.grade: Student.grade + 1}, synchronize_session=False))
+    db.session.commit()
+    return n
+
+
+def maybe_auto_advance_grades():
+    """Advance grades once per year, the first time the app is used in July.
+    Guarded by a unique Config lock key so concurrent workers can't double-bump."""
+    now = datetime.now(TZ)
+    if now.month != 7:
+        return
+    if _promo_done_year['value'] == now.year:
+        return
+    lock_key = f'grades_promoted_{now.year}'
+    if Config.query.get(lock_key) is not None:
+        _promo_done_year['value'] = now.year
+        return
+    # Claim the year atomically — only the worker that inserts the lock proceeds.
+    db.session.add(Config(key=lock_key, value=now.strftime('%Y-%m-%d %H:%M')))
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        _promo_done_year['value'] = now.year
+        return
+    _advance_all_grades()
+    set_config('grades_promoted_at', now.strftime('%Y-%m-%d %H:%M'))
+    set_config('grades_promoted_year', str(now.year))
+    _promo_done_year['value'] = now.year
+
+
+@main_bp.before_app_request
+def _auto_advance_grades_hook():
+    try:
+        maybe_auto_advance_grades()
+    except Exception:
+        db.session.rollback()
 
 
 def emergency_viewer_required(f):
@@ -747,7 +797,10 @@ def admin():
         passes=passes, frequent=frequent,
         date_str=date_str, student_q=student_q, period_f=period_f,
         periods=PERIODS, pass_labels=PASS_LABELS, all_users=all_users,
-        hallway_max=get_hallway_max(), hallway_count=count_students_in_hallway())
+        hallway_max=get_hallway_max(), hallway_count=count_students_in_hallway(),
+        grades_promoted_at=get_config('grades_promoted_at'),
+        current_year=datetime.now(TZ).year,
+        grades_advanced_this_year=(str(get_config('grades_promoted_year')) == str(datetime.now(TZ).year)))
 
 
 @main_bp.route('/admin/assign-roster', methods=['GET', 'POST'])
@@ -794,6 +847,23 @@ def set_hallway_max():
         return redirect(url_for('main.admin'))
     set_config('hallway_max', n)
     flash(f'Hallway cap set to {n}.')
+    return redirect(url_for('main.admin'))
+
+
+@main_bp.route('/admin/advance-grades', methods=['POST'])
+@login_required
+@admin_required
+def advance_grades():
+    now = datetime.now(TZ)
+    n = _advance_all_grades()
+    lock_key = f'grades_promoted_{now.year}'
+    if Config.query.get(lock_key) is None:
+        db.session.add(Config(key=lock_key, value=now.strftime('%Y-%m-%d %H:%M')))
+        db.session.commit()
+    set_config('grades_promoted_at', now.strftime('%Y-%m-%d %H:%M'))
+    set_config('grades_promoted_year', str(now.year))
+    _promo_done_year['value'] = now.year
+    flash(f'Advanced {n} student{"s" if n != 1 else ""} up one grade level. Grade 12 was left unchanged.')
     return redirect(url_for('main.admin'))
 
 

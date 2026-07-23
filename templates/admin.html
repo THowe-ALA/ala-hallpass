@@ -145,6 +145,31 @@
   </div>
 </div>
 
+{# ── New school year: advance grades ── #}
+<div class="card mt-4 no-print">
+  <div class="card-header fw-semibold">New School Year — Advance Grades</div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">
+      Bumps every student up one grade level (7→8, 8→9, … 11→12). Grade 12 is left unchanged —
+      delete graduating seniors first. This runs <strong>automatically the first time the app is
+      opened in July</strong> each year, so normally you won't need the button.
+    </p>
+    {% if grades_promoted_at %}
+    <p class="small mb-2 text-muted">Grades last advanced: <strong>{{ grades_promoted_at }}</strong></p>
+    {% endif %}
+    {% if grades_advanced_this_year %}
+    <div class="alert alert-warning small py-2">
+      ⚠️ Grades were already advanced for {{ current_year }}. Clicking again will bump everyone
+      <em>a second time</em> — only do this if you're sure.
+    </div>
+    {% endif %}
+    <form method="POST" action="{{ url_for('main.advance_grades') }}"
+          onsubmit="return confirm('Advance ALL students up one grade level now? Grade 12 stays the same. Make sure graduating seniors have already been deleted.')">
+      <button class="btn btn-sm btn-warning">⬆ Advance all grades +1</button>
+    </form>
+  </div>
+</div>
+
 {# ── Assign roster to a teacher ── #}
 <div class="card mt-4 no-print">
   <div class="card-header fw-semibold">Assign a Roster to a Teacher</div>
