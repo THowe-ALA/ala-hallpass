@@ -72,7 +72,7 @@
         <td>
           <a href="{{ url_for('main.scan', token=row.student.token) }}"
              class="btn btn-sm {{ 'btn-success' if row.open_pass else 'btn-outline-primary' }}">
-            {{ 'Log IN' if row.open_pass else 'Scan' }}
+            {{ 'Log IN' if row.open_pass else 'Log OUT' }}
           </a>
         </td>
       </tr>
