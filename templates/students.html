@@ -21,6 +21,31 @@
 </div>
 {% endif %}
 
+{% if view == 'all' %}
+<form method="GET" class="row g-2 mb-3 align-items-center">
+  <input type="hidden" name="view" value="all">
+  <div class="col-auto"><label class="col-form-label col-form-label-sm fw-semibold">Grade:</label></div>
+  <div class="col-auto">
+    <select name="grade" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">All grades</option>
+      {% for g in [7, 8, 9, 10, 11, 12] %}
+      <option value="{{ g }}" {{ 'selected' if grade_f == g|string }}>Grade {{ g }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% if grade_f %}
+  <div class="col-auto">
+    <a href="{{ url_for('main.students', view='all') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+  </div>
+  {% endif %}
+  <div class="col-auto text-muted small">
+    {{ total_shown }} student{{ 's' if total_shown != 1 }}
+    {% if grade_f %}in grade {{ grade_f }}{% endif %} ·
+    <span class="{{ 'status-out' if out_now else 'text-muted' }}">{{ out_now }} out right now</span>
+  </div>
+</form>
+{% endif %}
+
 {% if view == 'all' and buddy_pairs %}
 <div class="alert alert-warning mb-3">
   <div class="fw-bold mb-2">👯 Cross-class buddy patterns this week ({{ buddy_pairs | length }})</div>
@@ -82,6 +107,7 @@
         {% if view == 'all' %}<th style="width:2.5rem"><input type="checkbox" id="check-all" class="form-check-input" title="Select all"></th>{% endif %}
         <th>Name</th>
         <th>Grade</th>
+        {% if view == 'all' %}<th>Status</th>{% endif %}
         {% if rows is not none %}<th>Period</th>{% endif %}
         {% if rows is not none %}<th class="text-center">Times Out</th>{% endif %}
         <th>Quick Scan</th>
@@ -141,6 +167,16 @@
             {% endif %}
           </td>
           <td>{{ s.grade }}</td>
+          <td>
+            {% if open_map and s.id in open_map %}
+            <span class="status-out">OUT</span>
+            <div class="text-muted small">
+              {{ open_map[s.id].label }}{% if open_map[s.id].teacher %} · {{ open_map[s.id].teacher }}{% endif %}{% if open_map[s.id].minutes is not none %} · {{ open_map[s.id].minutes }} min{% endif %}
+            </div>
+            {% else %}
+            <span class="status-in">In class</span>
+            {% endif %}
+          </td>
           <td>
             <a href="{{ url_for('main.scan', token=s.token) }}"
                class="btn btn-sm btn-outline-primary">Scan</a>

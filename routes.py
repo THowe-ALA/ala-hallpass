@@ -506,12 +506,40 @@ def students():
     is_admin   = (current_user.role == 'admin')
 
     if is_admin and view_arg == 'all':
-        all_students = Student.query.order_by(Student.last_name, Student.first_name).all()
+        grade_f = request.args.get('grade', '')
+        sq = Student.query
+        if grade_f:
+            try:
+                sq = sq.filter(Student.grade == int(grade_f))
+            except ValueError:
+                grade_f = ''
+        all_students = sq.order_by(Student.grade, Student.last_name, Student.first_name).all()
         buddy_map, buddy_pairs = get_cross_teacher_buddies(datetime.now(TZ))
+
+        # School-wide "currently out" lookup: student_id -> info on their open pass.
+        now_utc = datetime.utcnow()
+        open_map = {}
+        open_passes = (Pass.query
+                       .filter(Pass.time_in.is_(None), Pass.time_out.isnot(None))
+                       .all())
+        for p in open_passes:
+            prev = open_map.get(p.student_id)
+            if prev is not None and prev['time_out'] >= p.time_out:
+                continue
+            open_map[p.student_id] = {
+                'label':    PASS_LABELS.get(p.pass_type, p.pass_type),
+                'teacher':  p.teacher.name if p.teacher else '',
+                'minutes':  int((now_utc - p.time_out).total_seconds() // 60) if p.time_out else None,
+                'time_out': p.time_out,
+            }
+        out_now = sum(1 for s in all_students if s.id in open_map)
+
         return render_template('students.html', students=all_students, rows=None,
                                is_admin=True, view='all',
                                chips=None, active_period=None,
-                               buddy_map=buddy_map, buddy_pairs=buddy_pairs)
+                               buddy_map=buddy_map, buddy_pairs=buddy_pairs,
+                               grade_f=grade_f, open_map=open_map,
+                               out_now=out_now, total_shown=len(all_students))
 
     q = (db.session.query(Student, TeacherStudent.period)
          .join(TeacherStudent, Student.id == TeacherStudent.student_id)
