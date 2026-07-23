@@ -568,32 +568,22 @@ def _parse_grade(raw):
     return n if 7 <= n <= 12 else None
 
 
-@main_bp.route('/students/upload', methods=['GET', 'POST'])
-@login_required
-def upload_students():
-    if request.method == 'GET':
-        return render_template('upload_students.html', periods=PERIODS)
-
-    file = request.files.get('csv_file')
-    if not file or file.filename == '':
-        flash('Please choose a CSV file to upload.')
-        return redirect(url_for('main.upload_students'))
-
-    period = request.form.get('period') or None
+def _ingest_roster_csv(file, period, teacher_id):
+    """Parse an uploaded roster CSV and attach its students to teacher_id's roster.
+    Returns (results_dict, None) on success, or (None, error_message) on failure.
+    Shared by the teacher self-upload and the admin assign-roster flows."""
     if period and period not in PERIODS:
         period = None
 
     try:
         raw = file.read().decode('utf-8-sig')  # handle Excel BOM
     except UnicodeDecodeError:
-        flash('Could not read the file. Please save it as CSV (UTF-8) and try again.')
-        return redirect(url_for('main.upload_students'))
+        return None, 'Could not read the file. Please save it as CSV (UTF-8) and try again.'
 
     reader = csv.DictReader(io.StringIO(raw))
     mapping, missing = _map_columns(reader.fieldnames)
     if missing:
-        flash(f"CSV is missing a '{missing}' column. Expected headers: first_name, last_name, grade.")
-        return redirect(url_for('main.upload_students'))
+        return None, f"CSV is missing a '{missing}' column. Expected headers: first_name, last_name, grade."
 
     # Pre-load existing students into a dict keyed by (first.lower, last.lower, grade).
     existing = {}
@@ -603,7 +593,7 @@ def upload_students():
     # Pre-load this teacher's roster as a set of student_ids.
     on_roster = {
         ts.student_id for ts in
-        TeacherStudent.query.filter_by(teacher_id=current_user.id).all()
+        TeacherStudent.query.filter_by(teacher_id=teacher_id).all()
     }
 
     created = 0
@@ -640,24 +630,38 @@ def upload_students():
             already_on_roster += 1
         else:
             db.session.add(TeacherStudent(
-                teacher_id=current_user.id, student_id=student.id, period=period
+                teacher_id=teacher_id, student_id=student.id, period=period
             ))
             on_roster.add(student.id)
             added_to_roster += 1
 
     db.session.commit()
-    return render_template(
-        'upload_students.html',
-        periods=PERIODS,
-        results={
-            'created': created,
-            'added_to_roster': added_to_roster,
-            'skipped_existing': skipped_existing,
-            'already_on_roster': already_on_roster,
-            'period': period,
-            'errors': errors,
-        }
-    )
+    return {
+        'created': created,
+        'added_to_roster': added_to_roster,
+        'skipped_existing': skipped_existing,
+        'already_on_roster': already_on_roster,
+        'period': period,
+        'errors': errors,
+    }, None
+
+
+@main_bp.route('/students/upload', methods=['GET', 'POST'])
+@login_required
+def upload_students():
+    if request.method == 'GET':
+        return render_template('upload_students.html', periods=PERIODS)
+
+    file = request.files.get('csv_file')
+    if not file or file.filename == '':
+        flash('Please choose a CSV file to upload.')
+        return redirect(url_for('main.upload_students'))
+
+    results, error = _ingest_roster_csv(file, request.form.get('period') or None, current_user.id)
+    if error:
+        flash(error)
+        return redirect(url_for('main.upload_students'))
+    return render_template('upload_students.html', periods=PERIODS, results=results)
 
 
 @main_bp.route('/students/<int:student_id>/remove', methods=['POST'])
@@ -744,6 +748,36 @@ def admin():
         date_str=date_str, student_q=student_q, period_f=period_f,
         periods=PERIODS, pass_labels=PASS_LABELS, all_users=all_users,
         hallway_max=get_hallway_max(), hallway_count=count_students_in_hallway())
+
+
+@main_bp.route('/admin/assign-roster', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def assign_roster():
+    teachers = User.query.order_by(User.name).all()
+    if request.method == 'GET':
+        return render_template('assign_roster.html', teachers=teachers, periods=PERIODS)
+
+    try:
+        teacher_id = int(request.form.get('teacher_id', ''))
+    except (TypeError, ValueError):
+        teacher_id = None
+    teacher = User.query.get(teacher_id) if teacher_id else None
+    if not teacher:
+        flash('Please choose a valid teacher.')
+        return redirect(url_for('main.assign_roster'))
+
+    file = request.files.get('csv_file')
+    if not file or file.filename == '':
+        flash('Please choose a CSV file to upload.')
+        return redirect(url_for('main.assign_roster'))
+
+    results, error = _ingest_roster_csv(file, request.form.get('period') or None, teacher.id)
+    if error:
+        flash(error)
+        return redirect(url_for('main.assign_roster'))
+    return render_template('assign_roster.html', teachers=teachers, periods=PERIODS,
+                           results=results, assigned_teacher=teacher)
 
 
 @main_bp.route('/admin/hallway_max', methods=['POST'])

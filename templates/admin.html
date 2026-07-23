@@ -145,6 +145,18 @@
   </div>
 </div>
 
+{# ── Assign roster to a teacher ── #}
+<div class="card mt-4 no-print">
+  <div class="card-header fw-semibold">Assign a Roster to a Teacher</div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">
+      Upload a CSV and add those students to another teacher's roster — for teachers who aren't
+      loading their own (e.g. the $10 "set me up" option).
+    </p>
+    <a href="{{ url_for('main.assign_roster') }}" class="btn btn-sm btn-primary">Assign Roster →</a>
+  </div>
+</div>
+
 {# ── Staff list / promote ── #}
 <div class="card mt-4 no-print">
   <div class="card-header fw-semibold">Staff Accounts</div>
