@@ -833,6 +833,61 @@ def unblock_student(student_id):
     return redirect(url_for('main.students', view='all'))
 
 
+def _parse_student_ids(raw_list):
+    ids = []
+    for x in raw_list:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+@main_bp.route('/admin/students/delete-confirm', methods=['POST'])
+@login_required
+@admin_required
+def delete_students_confirm():
+    """Review screen — shows exactly which students (and how much history) will be
+    permanently deleted before anything is removed."""
+    ids = _parse_student_ids(request.form.getlist('student_ids'))
+    students = (Student.query.filter(Student.id.in_(ids))
+                .order_by(Student.last_name, Student.first_name).all()) if ids else []
+    if not students:
+        flash('No students selected to delete.')
+        return redirect(url_for('main.students', view='all'))
+
+    pass_count    = Pass.query.filter(Pass.student_id.in_(ids)).count()
+    checkin_count = EmergencyCheckin.query.filter(EmergencyCheckin.student_id.in_(ids)).count()
+    roster_count  = TeacherStudent.query.filter(TeacherStudent.student_id.in_(ids)).count()
+    return render_template('confirm_delete_students.html',
+        students=students, pass_count=pass_count,
+        checkin_count=checkin_count, roster_count=roster_count)
+
+
+@main_bp.route('/admin/students/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_students():
+    """Permanently delete the selected students and ALL their dependent rows
+    (passes, emergency check-ins, roster links). Irreversible."""
+    ids = _parse_student_ids(request.form.getlist('student_ids'))
+    if not ids:
+        flash('No students selected to delete.')
+        return redirect(url_for('main.students', view='all'))
+
+    n = Student.query.filter(Student.id.in_(ids)).count()
+    # Delete children first — no ON DELETE CASCADE is defined, so Postgres would
+    # otherwise reject the student delete on the foreign keys.
+    Pass.query.filter(Pass.student_id.in_(ids)).delete(synchronize_session=False)
+    EmergencyCheckin.query.filter(EmergencyCheckin.student_id.in_(ids)).delete(synchronize_session=False)
+    TeacherStudent.query.filter(TeacherStudent.student_id.in_(ids)).delete(synchronize_session=False)
+    Student.query.filter(Student.id.in_(ids)).delete(synchronize_session=False)
+    db.session.commit()
+
+    flash(f'Permanently deleted {n} student{"s" if n != 1 else ""} and all their history.')
+    return redirect(url_for('main.students', view='all'))
+
+
 @main_bp.route('/emergency/checkin/<int:student_id>', methods=['POST'])
 @login_required
 def emergency_checkin(student_id):

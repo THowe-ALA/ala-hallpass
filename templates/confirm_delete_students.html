@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Confirm Delete — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-8">
+  <div class="card border-danger shadow">
+    <div class="card-header bg-danger text-white fw-bold">
+      ⚠️ Permanently delete {{ students|length }} student{{ 's' if students|length != 1 }}?
+    </div>
+    <div class="card-body">
+      <p class="mb-2">
+        This will <strong>permanently remove</strong> the following students from the database.
+        <strong>This cannot be undone.</strong>
+      </p>
+      <div style="max-height: 320px; overflow-y: auto;" class="border rounded p-2 mb-3">
+        <ul class="mb-0">
+          {% for s in students %}
+          <li>{{ s.full_name }} <span class="text-muted small">(grade {{ s.grade }})</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="alert alert-warning small mb-3">
+        Also permanently deleted:
+        <strong>{{ pass_count }}</strong> pass record{{ 's' if pass_count != 1 }},
+        <strong>{{ checkin_count }}</strong> emergency check-in{{ 's' if checkin_count != 1 }},
+        and <strong>{{ roster_count }}</strong> roster
+        entr{{ 'ies' if roster_count != 1 else 'y' }} across all teachers.
+      </div>
+      <form method="POST" action="{{ url_for('main.delete_students') }}" class="d-flex gap-2">
+        {% for s in students %}
+        <input type="hidden" name="student_ids" value="{{ s.id }}">
+        {% endfor %}
+        <button class="btn btn-danger">Yes, permanently delete</button>
+        <a href="{{ url_for('main.students', view='all') }}" class="btn btn-outline-secondary">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

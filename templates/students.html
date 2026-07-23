@@ -65,11 +65,21 @@
   {% endif %}
 </div>
 {% else %}
+{% if view == 'all' %}
+<form id="delete-form" method="POST" action="{{ url_for('main.delete_students_confirm') }}" class="mb-2">
+  <button type="submit" class="btn btn-sm btn-outline-danger">🗑 Delete selected students…</button>
+  <span class="text-muted small ms-2">
+    Check students below to permanently remove them and all their history (for end-of-year clean-up).
+    You'll confirm on the next screen.
+  </span>
+</form>
+{% endif %}
 <div class="card shadow-sm">
   <div class="table-responsive">
   <table class="table table-hover align-middle mb-0">
     <thead class="table-dark">
       <tr>
+        {% if view == 'all' %}<th style="width:2.5rem"><input type="checkbox" id="check-all" class="form-check-input" title="Select all"></th>{% endif %}
         <th>Name</th>
         <th>Grade</th>
         {% if rows is not none %}<th>Period</th>{% endif %}
@@ -114,6 +124,7 @@
       {% else %}
         {% for s in students %}
         <tr {% if s.is_blocked %}class="table-danger"{% elif buddy_map and s.id in buddy_map %}class="table-warning"{% endif %}>
+          <td><input type="checkbox" class="form-check-input del-check" name="student_ids" value="{{ s.id }}" form="delete-form"></td>
           <td>
             <strong>{{ s.full_name }}</strong>
             {% if s.is_blocked %}
@@ -172,6 +183,15 @@
       rows.forEach(r => {
         r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
       });
+    });
+  })();
+
+  (function() {
+    const checkAll = document.getElementById('check-all');
+    if (!checkAll) return;
+    const checks = document.querySelectorAll('.del-check');
+    checkAll.addEventListener('change', function() {
+      checks.forEach(c => { c.checked = checkAll.checked; });
     });
   })();
 </script>
