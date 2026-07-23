@@ -903,6 +903,32 @@ def unblock_student(student_id):
     return redirect(url_for('main.students', view='all'))
 
 
+@main_bp.route('/admin/students/<int:student_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_student(student_id):
+    """Admin one-off fix for a student's name/grade (e.g. a CSV typo) without
+    deleting and re-adding them — keeps their token, roster links, and history."""
+    student = Student.query.get_or_404(student_id)
+    if request.method == 'POST':
+        fn = (request.form.get('first_name') or '').strip()
+        ln = (request.form.get('last_name') or '').strip()
+        try:
+            grade = int(request.form.get('grade', ''))
+        except (TypeError, ValueError):
+            grade = None
+        if not fn or not ln or grade is None or not (7 <= grade <= 12):
+            flash('Please enter a first name, last name, and a grade from 7 to 12.')
+            return redirect(url_for('main.edit_student', student_id=student.id))
+        student.first_name = fn
+        student.last_name  = ln
+        student.grade      = grade
+        db.session.commit()
+        flash(f'Updated {student.full_name}.')
+        return redirect(url_for('main.students', view='all'))
+    return render_template('edit_student.html', student=student)
+
+
 def _parse_student_ids(raw_list):
     ids = []
     for x in raw_list:

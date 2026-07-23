@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Edit Student — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-md-5 col-lg-4">
+  <div class="card shadow">
+    <div class="card-header bg-dark text-white fw-bold">Edit Student</div>
+    <div class="card-body p-4">
+      <form method="POST">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">First Name</label>
+          <input type="text" name="first_name" class="form-control"
+                 value="{{ student.first_name }}" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Last Name</label>
+          <input type="text" name="last_name" class="form-control"
+                 value="{{ student.last_name }}" required>
+        </div>
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Grade</label>
+          <select name="grade" class="form-select" required>
+            {% for g in [7, 8, 9, 10, 11, 12] %}
+            <option value="{{ g }}" {{ 'selected' if student.grade == g }}>{{ g }}th</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-primary w-100">Save Changes</button>
+      </form>
+      <div class="form-text small mt-3">
+        Fixes this student's name and grade everywhere (their card, roster, and history stay linked).
+        Class period is set per teacher on their own roster, so it isn't changed here.
+      </div>
+    </div>
+  </div>
+  <div class="text-center mt-3">
+    <a href="{{ url_for('main.students', view='all') }}" class="text-muted">← Back to All Students</a>
+  </div>
+</div>
+</div>
+{% endblock %}

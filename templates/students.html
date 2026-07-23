@@ -144,6 +144,8 @@
           <td>
             <a href="{{ url_for('main.scan', token=s.token) }}"
                class="btn btn-sm btn-outline-primary">Scan</a>
+            <a href="{{ url_for('main.edit_student', student_id=s.id) }}"
+               class="btn btn-sm btn-outline-secondary">✏️ Edit</a>
           </td>
           <td>
             {% if s.is_blocked %}
