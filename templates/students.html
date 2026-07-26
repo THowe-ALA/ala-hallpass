@@ -80,6 +80,22 @@
 </div>
 {% endif %}
 
+{% if rows is not none and rows and active_period %}
+{% set period_label = 'Unassigned' if active_period == '__none__' else active_period %}
+<div class="alert alert-light border mb-3 d-flex flex-wrap gap-2 align-items-center">
+  <form method="POST" action="{{ url_for('main.remove_period_from_roster') }}" class="mb-0"
+        onsubmit="return confirm('Clear all {{ rows|length }} student(s) in “{{ period_label }}” off your roster?\n\nThis does NOT delete the students, their QR codes, or their pass history — you can re-upload a CSV to put them back under the right period.')">
+    <input type="hidden" name="period" value="{{ active_period }}">
+    <button class="btn btn-sm btn-outline-danger">🧹 Clear this period off my roster</button>
+  </form>
+  <span class="text-muted small">
+    For re-sorting a class into the right period: clear it here, then
+    <a href="{{ url_for('main.upload_students') }}">upload a CSV</a> under the period you want.
+    Students, QR codes, and history are kept.
+  </span>
+</div>
+{% endif %}
+
 {% set list_to_show = rows if rows is not none else students %}
 {% if not list_to_show %}
 <div class="alert alert-info">

@@ -32,8 +32,19 @@ PASS_TYPES   = [
 PASS_LABELS  = dict(PASS_TYPES)
 STUDENT_SERVICES_STAFF = ['Grace Wood', 'Maizey Clark', 'Melissa Molina Garcia', 'Other']
 PERIODS      = ['Zero Period', 'Leadership Period', '1st Period', '2nd Period',
-                '3rd Period', '4th / Lunch / 5th', '6th Period', '7th Period',
+                '3rd Period', '4th Period', '5th Period', '6th Period', '7th Period',
                 'Outside School Hours']
+
+# The clock can't tell 4th from 5th: lunch runs in three cohorts (A/B/C), so a
+# student's 4th hour ends at a different time depending on which lunch they have.
+# Passes are therefore still time-stamped with one combined mid-day label, while
+# rosters use the split '4th Period' / '5th Period' labels above.
+MIDDAY_BLOCK = '4th / Lunch / 5th'
+# Roster labels retired from the picker but still sitting on old rows — kept so
+# those students stay visible in filter chips instead of silently disappearing.
+LEGACY_PERIODS = [MIDDAY_BLOCK]
+# Roster periods that live inside the mid-day block, for the '__midday__' filter.
+MIDDAY_ROSTER_PERIODS = ['4th Period', '5th Period', MIDDAY_BLOCK]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -179,7 +190,7 @@ def get_period(dt_local):
         if m(8,35)  <= t < m(9,22):  return '1st Period'
         if m(9,26)  <= t < m(10,13): return '2nd Period'
         if m(10,17) <= t < m(11,4):  return '3rd Period'
-        if m(11,4)  <= t < m(13,15): return '4th / Lunch / 5th'
+        if m(11,4)  <= t < m(13,15): return MIDDAY_BLOCK
         if m(13,19) <= t < m(14,5):  return '6th Period'
         if m(14,9)  <= t < m(14,55): return '7th Period'
     else:
@@ -187,7 +198,7 @@ def get_period(dt_local):
         if m(8,15)  <= t < m(9,7):   return '1st Period'
         if m(9,11)  <= t < m(10,0):  return '2nd Period'
         if m(10,4)  <= t < m(10,53): return '3rd Period'
-        if m(10,53) <= t < m(13,9):  return '4th / Lunch / 5th'
+        if m(10,53) <= t < m(13,9):  return MIDDAY_BLOCK
         if m(13,13) <= t < m(14,2):  return '6th Period'
         if m(14,6)  <= t < m(14,55): return '7th Period'
     return 'Outside School Hours'
@@ -198,6 +209,8 @@ def _period_chips_for_teacher(teacher_id):
 
     `value` is what goes in the ?period= query param: None for "All",
     '__none__' for the unassigned bucket, or the period name itself.
+    Legacy labels get a chip too, so students on a retired period are still
+    reachable (and printable) instead of only showing up under "All".
     """
     from sqlalchemy import func
     rows = (db.session.query(TeacherStudent.period, func.count(TeacherStudent.student_id))
@@ -207,7 +220,7 @@ def _period_chips_for_teacher(teacher_id):
     by_period = {p: c for p, c in rows}
     total = sum(by_period.values())
     chips = [(None, 'All', total)]
-    for p in PERIODS:
+    for p in PERIODS + LEGACY_PERIODS:
         if by_period.get(p, 0) > 0:
             chips.append((p, p, by_period[p]))
     if by_period.get(None, 0) > 0:
@@ -219,6 +232,8 @@ def _apply_period_filter(query, period_arg):
     """Add a TeacherStudent.period filter to a roster query based on the ?period= param."""
     if period_arg == '__none__':
         return query.filter(TeacherStudent.period.is_(None))
+    if period_arg == '__midday__':
+        return query.filter(TeacherStudent.period.in_(MIDDAY_ROSTER_PERIODS))
     if period_arg:
         return query.filter(TeacherStudent.period == period_arg)
     return query
@@ -754,6 +769,36 @@ def remove_student(student_id):
     return redirect(url_for('main.students'))
 
 
+@main_bp.route('/students/remove-period', methods=['POST'])
+@login_required
+def remove_period_from_roster():
+    """Clear one period off this teacher's roster in one go, so a mis-bucketed
+    class can be re-uploaded under the right period.
+
+    Only the roster link is deleted — the students themselves, their QR tokens,
+    and their pass history all survive, so re-uploading the same names re-attaches
+    them to the very same printed QR codes."""
+    period_arg = request.form.get('period') or None
+    if not period_arg:
+        flash('Pick a period first — this only clears one period at a time.')
+        return redirect(url_for('main.students'))
+
+    q = TeacherStudent.query.filter_by(teacher_id=current_user.id)
+    if period_arg == '__none__':
+        q = q.filter(TeacherStudent.period.is_(None))
+    elif period_arg == '__midday__':
+        q = q.filter(TeacherStudent.period.in_(MIDDAY_ROSTER_PERIODS))
+    else:
+        q = q.filter(TeacherStudent.period == period_arg)
+
+    n = q.delete(synchronize_session=False)
+    db.session.commit()
+    label = {'__none__': 'Unassigned', '__midday__': 'Mid-day (4th + 5th)'}.get(period_arg, period_arg)
+    flash(f'Removed {n} student{"s" if n != 1 else ""} from your roster ({label}). '
+          'The students and their QR codes still exist — re-upload a CSV to put them back.')
+    return redirect(url_for('main.students'))
+
+
 def _print_roster(period_arg):
     # Admin with no period filter gets the full-school sheet;
     # otherwise filter to the current teacher's roster (optionally by period).
@@ -824,7 +869,9 @@ def admin():
     return render_template('admin.html',
         passes=passes, frequent=frequent,
         date_str=date_str, student_q=student_q, period_f=period_f,
-        periods=PERIODS, pass_labels=PASS_LABELS, all_users=all_users,
+        # Legacy labels included so passes stamped before the 4th/5th split
+        # are still filterable in the log.
+        periods=PERIODS + LEGACY_PERIODS, pass_labels=PASS_LABELS, all_users=all_users,
         hallway_max=get_hallway_max(), hallway_count=count_students_in_hallway(),
         grades_promoted_at=get_config('grades_promoted_at'),
         current_year=datetime.now(TZ).year,
@@ -1090,7 +1137,14 @@ def emergency_my():
     period_arg = request.args.get('period')
     if period_arg is None:                    # not specified → auto-detect
         detected = get_period(now_local)
-        period_arg = detected if detected != 'Outside School Hours' else '__all__'
+        if detected == 'Outside School Hours':
+            period_arg = '__all__'
+        elif detected == MIDDAY_BLOCK:
+            # The clock can't tell 4th from 5th (three lunch cohorts), so during a
+            # drill in that block show 4th AND 5th together rather than nothing.
+            period_arg = '__midday__'
+        else:
+            period_arg = detected
 
     try:
         window = int(request.args.get('window', 30))
@@ -1102,10 +1156,7 @@ def emergency_my():
          .join(TeacherStudent, Student.id == TeacherStudent.student_id)
          .filter(TeacherStudent.teacher_id == current_user.id))
     if period_arg and period_arg != '__all__':
-        if period_arg == '__none__':
-            q = q.filter(TeacherStudent.period.is_(None))
-        else:
-            q = q.filter(TeacherStudent.period == period_arg)
+        q = _apply_period_filter(q, period_arg)
 
     roster = q.order_by(Student.last_name, Student.first_name).all()
 
@@ -1137,6 +1188,10 @@ def emergency_my():
     chips = _period_chips_for_teacher(current_user.id)
     chips_with_all = [('__all__', 'All my students',
                        sum(c[2] for c in chips if c[0] is not None and c[0] != '__none__'))]
+    # Combined mid-day chip — the one the clock auto-selects during that block.
+    midday_count = sum(c[2] for c in chips if c[0] in MIDDAY_ROSTER_PERIODS)
+    if midday_count:
+        chips_with_all.append(('__midday__', 'Mid-day (4th + 5th)', midday_count))
     chips_with_all.extend([c for c in chips if c[0] is not None])
 
     return render_template('emergency_my.html',
