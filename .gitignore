@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+instance/
+*.db
+
+# Roster snapshots written by migrate_roster_pk.py before it changes the table.
+roster_backup_*.csv
