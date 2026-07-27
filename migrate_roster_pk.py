@@ -223,8 +223,9 @@ def main():
         sys.exit(f'Unique index {INDEX_NAME} missing -- duplicate roster rows '
                  f'would be possible. Restore from {path}.')
     print(f'Row count unchanged ({before}).')
-    print('\nNext: deploy the matching code change (models.py + the roster '
-          'paths in routes.py). Until then the app behaves exactly as before.')
+    print('\nIf the matching code change (models.py + the roster paths in routes.py) is '
+          'not deployed yet, deploy it now. If it already shipped, the app starts working '
+          'immediately -- no redeploy needed.')
 
 
 if __name__ == '__main__':
