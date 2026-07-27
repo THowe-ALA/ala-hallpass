@@ -2,7 +2,7 @@
 {% block title %}Edit Student — ALA Hall Pass{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
+<div class="row justify-content-center g-4">
 <div class="col-md-5 col-lg-4">
   <div class="card shadow">
     <div class="card-header bg-dark text-white fw-bold">Edit Student</div>
@@ -36,6 +36,61 @@
   </div>
   <div class="text-center mt-3">
     <a href="{{ url_for('main.students', view='all') }}" class="text-muted">← Back to All Students</a>
+  </div>
+</div>
+
+<div class="col-md-5 col-lg-4">
+  {% set scan_url = base_url + '/scan/' + student.token %}
+  <div class="card shadow">
+    <div class="card-header bg-dark text-white fw-bold">Pass Card</div>
+    <div class="card-body p-4 text-center">
+      <div class="fw-semibold">{{ student.full_name }}</div>
+      <div class="text-muted small mb-3">Grade {{ student.grade }}</div>
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data={{ scan_url | urlencode }}"
+           alt="Scan QR for {{ student.full_name }}"
+           class="img-fluid border rounded" style="max-width:200px">
+      <div class="form-text small mt-3">
+        Same code as their printed card — reprinting or re-adding them to a roster
+        does not change it.
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow mt-4">
+    <div class="card-header bg-dark text-white fw-bold">
+      Schedule <span class="fw-normal small">— rosters this student is on</span>
+    </div>
+    <div class="card-body p-0">
+      {% if schedule %}
+      <table class="table table-sm mb-0 align-middle">
+        <thead class="table-light">
+          <tr><th class="ps-3">Period</th><th class="pe-3">Teacher</th></tr>
+        </thead>
+        <tbody>
+          {% for period, teacher in schedule %}
+          <tr>
+            <td class="ps-3">
+              {% if period %}{{ period }}
+              {% else %}<span class="text-muted fst-italic">No period set</span>{% endif %}
+            </td>
+            <td class="pe-3">{{ teacher.name }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-4 text-center">
+        <div class="text-muted">Not on any teacher's roster.</div>
+        <div class="form-text small mt-2">
+          Their card still scans, but no teacher sees them on a dashboard or in
+          My Roll Call. Add them via Admin → Assign Roster.
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="form-text small mt-2 px-1">
+    Read-only. Periods are set per teacher on their own roster.
   </div>
 </div>
 </div>

@@ -1001,7 +1001,32 @@ def edit_student(student_id):
         db.session.commit()
         flash(f'Updated {student.full_name}.')
         return redirect(url_for('main.students', view='all'))
-    return render_template('edit_student.html', student=student)
+    return render_template('edit_student.html', student=student,
+                           schedule=get_student_schedule(student.id),
+                           base_url=os.environ.get('BASE_URL', request.host_url.rstrip('/')))
+
+
+def get_student_schedule(student_id):
+    """Every roster this student sits on: [(period_or_None, teacher), ...].
+
+    Ordered like a class schedule (PERIODS order), with legacy/unknown labels
+    and unassigned rows last. A student can appear on several teachers'
+    rosters, each with its own period — that's one row per pairing.
+    """
+    rows = (db.session.query(TeacherStudent.period, User)
+            .join(User, User.id == TeacherStudent.teacher_id)
+            .filter(TeacherStudent.student_id == student_id)
+            .all())
+
+    def sort_key(row):
+        period = row[0]
+        if period in PERIODS:
+            return (0, PERIODS.index(period), (row[1].name or '').lower())
+        if period:                      # legacy label still on old rows
+            return (1, 0, (row[1].name or '').lower())
+        return (2, 0, (row[1].name or '').lower())   # unassigned period
+
+    return sorted(rows, key=sort_key)
 
 
 def _parse_student_ids(raw_list):
