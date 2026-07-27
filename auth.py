@@ -8,6 +8,29 @@ from models import User
 auth_bp = Blueprint('auth', __name__)
 
 
+def _allowed_teacher_emails():
+    raw = os.environ.get('ALLOWED_TEACHERS', '')
+    return {e.strip().lower() for e in raw.split(',') if e.strip()}
+
+
+def is_allowed_teacher(email):
+    """Explicit allowlist gate for who may hold an account at all.
+
+    Fails OPEN when ALLOWED_TEACHERS is unset or empty, so deploying this
+    change cannot lock the whole staff out before the env var is set on
+    Railway. ADMIN_EMAIL is always allowed so the admin can never be locked
+    out by a typo in the list.
+    """
+    allowed = _allowed_teacher_emails()
+    if not allowed:
+        return True
+    email       = (email or '').strip().lower()
+    admin_email = os.environ.get('ADMIN_EMAIL', '').strip().lower()
+    if admin_email and email == admin_email:
+        return True
+    return email in allowed
+
+
 @auth_bp.route('/login')
 def login():
     redirect_uri = url_for('auth.callback', _external=True)
@@ -22,6 +45,16 @@ def callback():
     if not userinfo:
         flash('Login failed — please try again.')
         return redirect(url_for('auth.login'))
+
+    # Checked on EVERY login, not just account creation, so removing someone
+    # from ALLOWED_TEACHERS revokes an existing account instead of only
+    # blocking new ones. Redirect to login_page (static) rather than login
+    # (which re-fires the Google redirect) or rejected users hit a loop.
+    if not is_allowed_teacher(userinfo.get('email')):
+        logout_user()
+        flash("That Google account isn't authorized for Muster. "
+              "If you should have access, ask Ms. Howe to add you.")
+        return redirect(url_for('auth.login_page'))
 
     user = User.query.filter_by(google_id=userinfo['sub']).first()
     if not user:
