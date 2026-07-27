@@ -357,11 +357,13 @@ def index():
 @login_required
 def dashboard():
     period_arg = request.args.get('period') or None
+    # distinct(): a student the teacher has in two periods matches the join
+    # twice, and the dashboard is one row per student, not per class.
     q = (db.session.query(Student)
          .join(TeacherStudent, Student.id == TeacherStudent.student_id)
          .filter(TeacherStudent.teacher_id == current_user.id))
     q = _apply_period_filter(q, period_arg)
-    roster = q.order_by(Student.last_name, Student.first_name).all()
+    roster = q.distinct().order_by(Student.last_name, Student.first_name).all()
     chips = _period_chips_for_teacher(current_user.id)
 
     now_local   = datetime.now(TZ)
@@ -595,18 +597,23 @@ def add_student():
             db.session.add(student)
             db.session.flush()
 
+        # Scoped to the period: adding a student you already have in a DIFFERENT
+        # period is a second class, not an edit. This used to overwrite
+        # existing.period, which silently MOVED the student out of their first
+        # class instead of adding the second.
         existing = TeacherStudent.query.filter_by(
-            teacher_id=current_user.id, student_id=student.id
+            teacher_id=current_user.id, student_id=student.id, period=period
         ).first()
         if existing:
-            if period and existing.period != period:
-                existing.period = period
-        else:
-            db.session.add(TeacherStudent(
-                teacher_id=current_user.id, student_id=student.id, period=period))
+            flash(f'{student.full_name} is already on your roster for '
+                  f'{period or "no period"}.')
+            return redirect(url_for('main.students'))
 
+        db.session.add(TeacherStudent(
+            teacher_id=current_user.id, student_id=student.id, period=period))
         db.session.commit()
-        flash(f'{student.full_name} added to your roster.')
+        flash(f'{student.full_name} added to your roster'
+              f'{" for " + period if period else ""}.')
         return redirect(url_for('main.students'))
 
     return render_template('add_student.html', periods=PERIODS)
@@ -683,9 +690,11 @@ def _ingest_roster_csv(file, period, teacher_id):
     for s in Student.query.all():
         existing[(s.first_name.strip().lower(), s.last_name.strip().lower(), s.grade)] = s
 
-    # Pre-load this teacher's roster as a set of student_ids.
+    # Pre-load this teacher's roster keyed by (student_id, period). Keyed by
+    # student_id alone, uploading a second class's CSV silently skipped every
+    # student the teacher already had in another period.
     on_roster = {
-        ts.student_id for ts in
+        (ts.student_id, ts.period) for ts in
         TeacherStudent.query.filter_by(teacher_id=teacher_id).all()
     }
 
@@ -719,13 +728,13 @@ def _ingest_roster_csv(file, period, teacher_id):
             existing[key] = student
             created += 1
 
-        if student.id in on_roster:
+        if (student.id, period) in on_roster:
             already_on_roster += 1
         else:
             db.session.add(TeacherStudent(
                 teacher_id=teacher_id, student_id=student.id, period=period
             ))
-            on_roster.add(student.id)
+            on_roster.add((student.id, period))
             added_to_roster += 1
 
     db.session.commit()
@@ -760,13 +769,22 @@ def upload_students():
 @main_bp.route('/students/<int:student_id>/remove', methods=['POST'])
 @login_required
 def remove_student(student_id):
-    ts = TeacherStudent.query.filter_by(
-        teacher_id=current_user.id, student_id=student_id
-    ).first_or_404()
+    """Remove one roster row — the period the teacher is looking at.
+
+    A student can now sit on the same teacher's roster in several periods, so
+    the row is identified by the period posted from the table (the row the
+    Remove button belongs to). Their other classes are left alone.
+    """
+    period = request.form.get('period') or None
+    q = TeacherStudent.query.filter_by(teacher_id=current_user.id,
+                                       student_id=student_id)
+    ts = q.filter(TeacherStudent.period.is_(None) if period is None
+                  else TeacherStudent.period == period).first_or_404()
     db.session.delete(ts)
     db.session.commit()
-    flash('Student removed from your roster.')
-    return redirect(url_for('main.students'))
+    flash(f'Student removed from your roster'
+          f'{" for " + period if period else ""}.')
+    return redirect(request.referrer or url_for('main.students'))
 
 
 @main_bp.route('/students/remove-period', methods=['POST'])
@@ -808,7 +826,9 @@ def _print_roster(period_arg):
          .join(TeacherStudent, Student.id == TeacherStudent.student_id)
          .filter(TeacherStudent.teacher_id == current_user.id))
     q = _apply_period_filter(q, period_arg)
-    return q.order_by(Student.last_name, Student.first_name).all()
+    # distinct(): without it a student in two of this teacher's periods gets two
+    # identical QR cards on the same print sheet.
+    return q.distinct().order_by(Student.last_name, Student.first_name).all()
 
 
 @main_bp.route('/print')
@@ -1184,6 +1204,18 @@ def emergency_my():
         q = _apply_period_filter(q, period_arg)
 
     roster = q.order_by(Student.last_name, Student.first_name).all()
+
+    # One row per student. A student in two of this teacher's periods matches
+    # the join twice — the mid-day filter covers both 4th and 5th, and '__all__'
+    # covers everything — which during a drill would inflate the roll-call total
+    # and give one kid two Secure buttons.
+    seen, deduped = set(), []
+    for s, p in roster:
+        if s.id in seen:
+            continue
+        seen.add(s.id)
+        deduped.append((s, p))
+    roster = deduped
 
     cutoff_utc = datetime.utcnow() - timedelta(minutes=window)
     recent = (EmergencyCheckin.query

@@ -157,7 +157,10 @@
           </td>
           <td>
             <form method="POST" action="{{ url_for('main.remove_student', student_id=r.student.id) }}"
-                  onsubmit="return confirm('Remove {{ r.student.full_name }} from your roster?')">
+                  onsubmit="return confirm('Remove {{ r.student.full_name }} from {{ r.period or "your roster (no period set)" }}?{{ " Their other classes with you are not affected." if r.period }}')">
+              {# Identifies WHICH roster row to drop — a student can be on this
+                 teacher's roster in more than one period. #}
+              <input type="hidden" name="period" value="{{ r.period or '' }}">
               <button class="btn btn-sm btn-outline-danger">Remove</button>
             </form>
           </td>

@@ -32,11 +32,30 @@ class Student(db.Model):
 
 
 class TeacherStudent(db.Model):
-    """Roster — which students belong to which teacher's class."""
+    """Roster — which students belong to which teacher's class.
+
+    One row per teacher/student/PERIOD. The primary key used to be
+    (teacher_id, student_id), which made a teacher who has the same student for
+    two subjects — e.g. Dance 2 and Ballroom 1 — impossible to represent.
+
+    The unique index folds a NULL period to '' on purpose: a plain unique index
+    over a nullable column treats every NULL as distinct, so "no period set"
+    rows would silently duplicate. NULL still means "unassigned" everywhere
+    else (routes.py filters on period IS NULL).
+
+    Existing databases are moved onto this shape by migrate_roster_pk.py.
+    """
     __tablename__ = 'teacher_students'
-    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'),    primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), primary_key=True)
-    period     = db.Column(db.String(50))  # class period for this teacher–student pairing; NULL = unassigned
+    id         = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'),    nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    period     = db.Column(db.String(50))  # class period for this pairing; NULL = unassigned
+
+    __table_args__ = (
+        db.Index('uq_teacher_student_period',
+                 'teacher_id', 'student_id', db.func.coalesce(period, ''),
+                 unique=True),
+    )
 
 
 class Pass(db.Model):
