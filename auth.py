@@ -1,6 +1,6 @@
 import os
 from datetime import timedelta
-from flask import Blueprint, redirect, url_for, flash, render_template
+from flask import Blueprint, redirect, url_for, flash, render_template, current_app
 from flask_login import login_user, logout_user, login_required
 from app import db, oauth
 from models import User
@@ -16,18 +16,28 @@ def _allowed_teacher_emails():
 def is_allowed_teacher(email):
     """Explicit allowlist gate for who may hold an account at all.
 
-    Fails OPEN when ALLOWED_TEACHERS is unset or empty, so deploying this
-    change cannot lock the whole staff out before the env var is set on
-    Railway. ADMIN_EMAIL is always allowed so the admin can never be locked
-    out by a typo in the list.
+    Fails CLOSED: an unset or empty ALLOWED_TEACHERS admits nobody but
+    ADMIN_EMAIL. This used to fail OPEN so that first deploy couldn't lock the
+    staff out before the env var existed, but the OAuth app is now PUBLISHED —
+    Google no longer gates sign-in to a test-user list, so this allowlist is the
+    only thing between the open internet and an auto-created teacher account.
+    Losing the variable must not mean admitting everyone.
+
+    ADMIN_EMAIL is always allowed, so a typo in the list can't lock out the
+    admin who needs to fix the list.
     """
-    allowed = _allowed_teacher_emails()
-    if not allowed:
-        return True
     email       = (email or '').strip().lower()
     admin_email = os.environ.get('ADMIN_EMAIL', '').strip().lower()
     if admin_email and email == admin_email:
         return True
+    allowed = _allowed_teacher_emails()
+    if not allowed:
+        # Misconfiguration, not a normal rejection — make it findable in the
+        # Railway deploy log instead of looking like a bad email.
+        current_app.logger.error(
+            'ALLOWED_TEACHERS is empty or unset — rejecting %s. '
+            'Every non-admin sign-in will fail until it is restored.', email)
+        return False
     return email in allowed
 
 
