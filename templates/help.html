@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}How to Use Muster — Teacher Guide{% endblock %}
+
+{% block content %}
+<style>
+  .help-h  { border-bottom: 3px solid #212529; padding-bottom: .3rem; margin-top: 2.25rem; }
+  .help-h:first-of-type { margin-top: .5rem; }
+  .step    { counter-reset: none; }
+  .step li { margin-bottom: .5rem; }
+  .btnish  { display: inline-block; padding: .05rem .4rem; border-radius: .25rem;
+             background: #212529; color: #fff; font-size: .85em; font-weight: 600;
+             white-space: nowrap; }
+  .tip     { background: #e7f1ff; border-left: 4px solid #0d6efd; padding: .75rem 1rem;
+             border-radius: .25rem; margin: .75rem 0; }
+  .warn    { background: #fff3cd; border-left: 4px solid #ffc107; padding: .75rem 1rem;
+             border-radius: .25rem; margin: .75rem 0; }
+  .toc a   { text-decoration: none; }
+  @media print {
+    .no-print { display: none !important; }
+    .help-h  { page-break-after: avoid; }
+    a        { text-decoration: none; color: #000; }
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-start mb-2">
+  <div>
+    <h3 class="mb-1">How to Use Muster</h3>
+    <p class="text-muted mb-0">The hall pass app. Everything you need, in order.</p>
+  </div>
+  <button class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()">🖨 Print</button>
+</div>
+
+<div class="card mb-4 no-print">
+  <div class="card-body py-3 toc">
+    <div class="row row-cols-1 row-cols-md-2 g-1 small">
+      <div><a href="#signin">1. Signing in</a></div>
+      <div><a href="#students">2. Getting your students in</a></div>
+      <div><a href="#computer">3. Writing a pass — computer</a></div>
+      <div><a href="#phone">4. Writing a pass — phone</a></div>
+      <div><a href="#back">5. Logging them back in</a></div>
+      <div><a href="#drill">6. Fire drill or lockdown</a></div>
+      <div><a href="#print">7. Printing student cards</a></div>
+      <div><a href="#warnings">8. Warnings you might see</a></div>
+      <div><a href="#fixit">9. When something looks wrong</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="tip">
+  <strong>The one-sentence version:</strong> every student has a QR code. Scan it (or tap their
+  name), pick where they're going, tap the blue button. Scan again when they come back.
+</div>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="signin">1. Signing in</h5>
+<ol class="step">
+  <li>Open the Muster link on your computer or phone.</li>
+  <li>Tap the red <span class="btnish">Sign in with Google</span> button.</li>
+  <li>Pick your <strong>school Google account</strong> — the same one you use for school email.</li>
+  <li>That's it. You land on your roster page.</li>
+</ol>
+<ul>
+  <li>You only have to do this once per device. It remembers you for about a month.</li>
+  <li>Your very first sign-in is what creates your account, so nothing will look set up until
+      you've done it.</li>
+  <li><span class="btnish">Sign out</span> is in the top-right, but you usually don't need it.
+      Leave yourself signed in on your classroom computer.</li>
+</ul>
+<div class="warn">
+  <strong>If it says you're not authorized:</strong> your email hasn't been added to the
+  approved list yet, or you signed in with a personal Gmail instead of your school account.
+  Check which account you used first, then ask Ms. Howe.
+</div>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="students">2. Getting your students in</h5>
+<p class="mb-2">Two ways. Both live on the <span class="btnish">Roster</span> page at the top.</p>
+
+<p class="fw-semibold mb-1">One student at a time</p>
+<ol class="step">
+  <li>Tap <span class="btnish">+ Add Student</span>.</li>
+  <li>Type first name, last name, pick a grade.</li>
+  <li>Pick the <strong>class period</strong> they're in.</li>
+  <li>Tap <span class="btnish">Add to My Roster</span>.</li>
+</ol>
+
+<p class="fw-semibold mb-1 mt-3">A whole class at once</p>
+<ol class="step">
+  <li>Tap <span class="btnish">⬆ Upload CSV</span>.</li>
+  <li>Choose the <strong>class period</strong> first — everyone in the file goes into that period.</li>
+  <li>Choose your file, tap <span class="btnish">Upload</span>.</li>
+  <li>You'll get a little report: how many were added, how many were already there.</li>
+</ol>
+<p class="mb-1">Your file needs exactly three columns, spelled like this:</p>
+<pre class="bg-light border rounded p-2 small mb-2">first_name,last_name,grade
+Jane,Smith,9
+John,Doe,11</pre>
+<ul>
+  <li>Grades must be 7 through 12.</li>
+  <li><strong>Use this year's grade,</strong> not last year's. A 9th grader who's now in 10th
+      needs to say 10.</li>
+  <li>Upload one file per class period. Six classes = six uploads.</li>
+</ul>
+<div class="tip">
+  <strong>Got a spreadsheet instead of a CSV?</strong> In Excel or Google Sheets choose
+  <em>File → Download / Save As → CSV</em>. Make sure the very first row is
+  <code>first_name,last_name,grade</code>.
+</div>
+
+<p class="fw-semibold mb-1 mt-3">Fixing your roster</p>
+<ul>
+  <li>The buttons across the top of your roster are your <strong>class periods</strong>. Tap one
+      to see just that class. The number on each is how many students are in it.</li>
+  <li>Use the <strong>🔍 search box</strong> to find one student fast.</li>
+  <li><span class="btnish">Remove</span> takes a student out of <em>that one class</em>. If you
+      have them twice (two different periods), their other class isn't touched.</li>
+  <li>Put a whole class in the wrong period? Tap that period, then
+      <span class="btnish">🧹 Clear this period off my roster</span>, then upload the file again
+      under the right period.</li>
+</ul>
+<div class="tip">
+  Clearing or removing <strong>never deletes a student or their QR code.</strong> Their printed
+  card keeps working, and their history is kept. You're only changing who's on your class list.
+</div>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="computer">3. Writing a pass — on your computer</h5>
+<ol class="step">
+  <li>Your roster is the front page. Find the student.</li>
+  <li>Tap the <span class="btnish">Log OUT</span> button on their row.</li>
+  <li>Pick where they're going:
+    <ul class="mt-1">
+      <li><strong>Restroom</strong></li>
+      <li><strong>Nurse</strong> — opens boxes to check off what's wrong and what you already
+          tried (water, bandaid, head down…). Check what applies; you don't have to fill in
+          everything.</li>
+      <li><strong>Office</strong></li>
+      <li><strong>Student Services</strong> — pick who they're seeing from the list, or pick
+          <em>Other</em> and type a name.</li>
+      <li><strong>Late Departure</strong> — type who's releasing them.</li>
+      <li><strong>Going to Another Teacher</strong> — type which teacher.</li>
+    </ul>
+  </li>
+  <li>Tap the big blue <span class="btnish">Log Pass OUT →</span>.</li>
+</ol>
+<ul>
+  <li>Their row now says <strong class="text-danger">OUT</strong> and starts counting minutes.</li>
+  <li>A banner at the top tells you how many of your students are out right now.</li>
+</ul>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="phone">4. Writing a pass — on your phone</h5>
+<p>Same thing, but you scan the student's QR card instead of hunting for their name.</p>
+<ol class="step">
+  <li><strong>Sign in to Muster on your phone first.</strong> Do this once, before you ever
+      scan.</li>
+  <li>Open your phone's <strong>regular Camera app</strong> and point it at the student's QR
+      card.</li>
+  <li>Tap the link that pops up.</li>
+  <li>Pick the pass type, tap <span class="btnish">Log Pass OUT →</span>. Done.</li>
+</ol>
+<div class="warn">
+  <strong>Two things that trip people up:</strong>
+  <ul class="mb-0 mt-1">
+    <li><strong>Use the built-in Camera app.</strong> Downloaded "QR scanner" apps open the page
+        inside their own little browser, which can't sign you in to Google. You'll get stuck on
+        a login screen that won't work.</li>
+    <li><strong>Sign in before you scan</strong>, not after. If you scan first you may just get
+        bounced to a sign-in page.</li>
+  </ul>
+</div>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="back">5. Logging them back in</h5>
+<ul>
+  <li><strong>On the computer:</strong> their row now shows a green
+      <span class="btnish">Log IN</span>. Tap it, then tap
+      <span class="btnish">✅ Log Back In</span>.</li>
+  <li><strong>On your phone:</strong> scan the same card again. Muster already knows they're out,
+      so it just offers the green <span class="btnish">✅ Log Back In</span> button.</li>
+</ul>
+<div class="tip">
+  You never pick "in" or "out" — <strong>scanning the same card does whichever one makes
+  sense.</strong> Out if they're in the room, in if they're already out.
+</div>
+<ul>
+  <li>Forgot to log someone back in? Just do it when you notice. The minutes will look long;
+      that's fine, nobody's in trouble.</li>
+</ul>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="drill">6. Fire drill or lockdown</h5>
+<p class="mb-2">This is the part worth practicing <em>before</em> you need it.</p>
+<p class="fw-semibold mb-1">Students on your roster</p>
+<ol class="step">
+  <li>Tap <span class="btnish">🚨 My Roll Call</span> at the top.</li>
+  <li>It already shows the class you have right now.</li>
+  <li>Tap <span class="btnish">Secure</span> beside each student who is with you.</li>
+  <li>Their row turns green and the count at the top goes up. The office sees it instantly.</li>
+</ol>
+<ul>
+  <li>Keep tapping — the page doesn't reload and won't lose your place.</li>
+  <li>If a button turns yellow and says <strong>Retry</strong>, tap it again. That's a weak signal,
+      not a mistake you made.</li>
+</ul>
+<p class="fw-semibold mb-1 mt-3">A student who isn't yours</p>
+<ol class="step">
+  <li>Scan their QR card with your phone.</li>
+  <li>Tap the big red <span class="btnish">🚨 Mark ___ SECURE with me</span> at the top of the
+      page.</li>
+</ol>
+<div class="tip">
+  You can scan <strong>any</strong> student in the school, not just your own. That's on purpose —
+  during a drill kids end up in the wrong room.
+</div>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="print">7. Printing student cards</h5>
+<p class="mb-2">Every student needs their QR code on something. Tap
+   <span class="btnish">Print</span> at the top.</p>
+<ul>
+  <li><strong>Lanyard cards</strong> — big cards, one per student. Laminate them.</li>
+  <li><strong>🏷 ID Stickers</strong> — small, about 32 to a page. Stick them on student IDs.</li>
+</ul>
+<ol class="step">
+  <li>Tap a class period first if you only want that class.</li>
+  <li><strong>Wait for every QR square to finish loading.</strong> If you print too fast you get
+      blank boxes.</li>
+  <li>Tap <span class="btnish">🖨 Print</span>.</li>
+</ol>
+<ul>
+  <li>Print once and you're done — a student's code never changes, all year.</li>
+  <li>Lost card? Reprint that class; it comes out the same.</li>
+</ul>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="warnings">8. Warnings you might see</h5>
+<p class="mb-2">Muster shows these for you to use your judgment on. It never blocks a student on
+   its own.</p>
+<ul>
+  <li><strong>⚠️ Used a pass in the last hour</strong> — they just went somewhere.</li>
+  <li><strong>⚠️ 3 passes today</strong> (with a red number by their name) — going a lot today.</li>
+  <li><strong>🔁 2nd day in a row</strong> — leaving the same class two days running. Sometimes
+      that's a pattern, sometimes it's a stomach bug.</li>
+  <li><strong>🚧 Too many students in the hallway</strong> — the school-wide restroom count is at
+      its cap. Wait for it to drop before sending another one.</li>
+  <li><strong>🚫 Cannot leave without an adult escort</strong> — an administrator has flagged
+      this student, and there may be a note explaining why. The pass options disappear. Don't
+      send them; call the office.</li>
+</ul>
+
+{# ─────────────────────────────────────────────────────── #}
+<h5 class="help-h" id="fixit">9. When something looks wrong</h5>
+<ul>
+  <li><strong>My roster is empty.</strong> You haven't added students yet — see section 2.</li>
+  <li><strong>A student's card won't scan.</strong> Check the QR is clean and not glare-covered,
+      then look them up on your roster and tap <span class="btnish">Scan</span> instead. Same
+      screen, no camera needed.</li>
+  <li><strong>Scanning sends me to a login page over and over.</strong> You're in a QR-scanner
+      app's browser. Close it, open Muster in Safari or Chrome, sign in, then scan with the
+      normal Camera app.</li>
+  <li><strong>A student shows OUT but they're sitting right here.</strong> Log them back in —
+      someone forgot. No harm done.</li>
+  <li><strong>I sent someone out from the wrong period.</strong> Leave it. The time is recorded
+      correctly; the period label is the only thing that's off.</li>
+  <li><strong>A student is missing from My Roll Call.</strong> They're probably filed under a
+      different period. Tap the other period buttons at the top.</li>
+  <li><strong>A name is spelled wrong, or a student left the school.</strong> Ask Ms. Howe —
+      those are admin jobs.</li>
+</ul>
+<div class="tip mb-0">
+  <strong>Still stuck?</strong> Tell Ms. Howe two things: what you tapped, and what it said back.
+  That's usually enough to sort it out in a minute.
+</div>
+
+<p class="text-muted small mt-4 mb-0">
+  Muster (by Howe) · You can print this page with the button at the top.
+</p>
+{% endblock %}

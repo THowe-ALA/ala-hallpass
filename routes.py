@@ -353,6 +353,17 @@ def index():
     return redirect(url_for('main.dashboard'))
 
 
+@main_bp.route('/help')
+def help_page():
+    """Teacher guide. Deliberately NOT login_required.
+
+    Step one of the guide is "how to sign in", so a teacher has to be able to
+    read it before they have an account, and Theresa has to be able to text the
+    link to someone who is locked out.
+    """
+    return render_template('help.html')
+
+
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():

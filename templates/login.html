@@ -21,6 +21,11 @@
     <a href="{{ url_for('auth.login') }}" class="btn btn-danger btn-lg">
       Sign in with Google
     </a>
+    {# Public on purpose: step 1 of the guide is how to sign in, so someone who
+       can't get in still needs to be able to read it. #}
+    <a href="{{ url_for('main.help_page') }}" class="d-block mt-3 small text-muted">
+      New to Muster? Read the quick guide →
+    </a>
   </div>
 </body>
 </html>
