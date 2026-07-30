@@ -46,7 +46,13 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_id):
         from models import User
-        return User.query.get(int(user_id))
+        user = User.query.get(int(user_id))
+        # Refuse deactivated accounts here, not just at sign-in: sessions are
+        # remembered for 30 days, so a departed teacher would otherwise stay
+        # logged in on their phone until the cookie expired.
+        if user is not None and not user.is_active:
+            return None
+        return user
 
     from auth   import auth_bp
     from routes import main_bp, is_nurse_viewer, is_emergency_viewer
@@ -79,6 +85,13 @@ def _apply_lightweight_migrations():
             # Existing rows pre-date period tracking — backfill to "1st Period"
             # since that was the only class on the roster during initial testing.
             conn.execute(text("UPDATE teacher_students SET period = '1st Period' WHERE period IS NULL"))
+
+    user_cols = {c['name'] for c in inspector.get_columns('users')}
+    if 'is_active' not in user_cols:
+        with db.engine.begin() as conn:
+            # Existing accounts pre-date deactivation, so they are all active.
+            conn.execute(text(
+                'ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE'))
 
     student_cols = {c['name'] for c in inspector.get_columns('students')}
     if 'is_blocked' not in student_cols:

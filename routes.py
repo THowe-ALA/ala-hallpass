@@ -910,6 +910,8 @@ def admin():
         # Legacy labels included so passes stamped before the 4th/5th split
         # are still filterable in the log.
         periods=PERIODS + LEGACY_PERIODS, pass_labels=PASS_LABELS, all_users=all_users,
+        # Lets the staff table hide Deactivate on the account that must keep access.
+        admin_email=os.environ.get('ADMIN_EMAIL', '').strip().lower(),
         hallway_max=get_hallway_max(), hallway_count=count_students_in_hallway(),
         grades_promoted_at=get_config('grades_promoted_at'),
         current_year=datetime.now(TZ).year,
@@ -920,7 +922,9 @@ def admin():
 @login_required
 @admin_required
 def assign_roster():
-    teachers = User.query.order_by(User.name).all()
+    # Deactivated staff are omitted so a roster can't be assigned to someone
+    # who has left.
+    teachers = User.query.filter(User.is_active.is_(True)).order_by(User.name).all()
     if request.method == 'GET':
         return render_template('assign_roster.html', teachers=teachers, periods=PERIODS)
 
@@ -963,7 +967,9 @@ def print_by_teacher():
                                    func.count(func.distinct(TeacherStudent.student_id)))
                   .group_by(TeacherStudent.teacher_id).all())
     rows = []
-    for t in User.query.order_by(User.name).all():
+    # Deactivated staff are excluded: you never need to print cards for a
+    # teacher who has left. Their rows are still on the Staff Accounts list.
+    for t in User.query.filter(User.is_active.is_(True)).order_by(User.name).all():
         chips = _period_chips_for_teacher(t.id)
         rows.append({
             'teacher': t,
@@ -1005,6 +1011,112 @@ def advance_grades():
     set_config('grades_promoted_year', str(now.year))
     _promo_done_year['value'] = now.year
     flash(f'Advanced {n} student{"s" if n != 1 else ""} up one grade level. Grade 12 was left unchanged.')
+    return redirect(url_for('main.admin'))
+
+
+def _deactivation_blocker(user):
+    """Why this account may not be deactivated, or None if it's fine.
+
+    Guards exist because deactivation locks the account out immediately: the
+    admin must not be able to strand themselves or the ADMIN_EMAIL account,
+    which is the only one that can undo it.
+    """
+    if user is None:
+        return 'That account no longer exists.'
+    if user.id == current_user.id:
+        return "You can't deactivate your own account."
+    admin_email = os.environ.get('ADMIN_EMAIL', '').strip().lower()
+    if admin_email and (user.email or '').strip().lower() == admin_email:
+        return ('That is the ADMIN_EMAIL account — deactivating it would lock '
+                'the owner out of the app.')
+    if not user.is_active:
+        return f'{user.name} is already deactivated.'
+    return None
+
+
+def _teacher_footprint(user_id):
+    """What a departed teacher leaves behind, for the confirm screen."""
+    from sqlalchemy import func
+    roster_rows = (db.session.query(TeacherStudent)
+                   .filter(TeacherStudent.teacher_id == user_id).count())
+    students = (db.session.query(func.count(func.distinct(TeacherStudent.student_id)))
+                .filter(TeacherStudent.teacher_id == user_id).scalar() or 0)
+    periods = [p for (p,) in db.session.query(TeacherStudent.period)
+               .filter(TeacherStudent.teacher_id == user_id)
+               .distinct().all()]
+    return {
+        'roster_rows': roster_rows,
+        'students':    students,
+        # Sorted PERIODS-first so the list reads like a schedule, unassigned last.
+        'periods':     sorted([p for p in periods if p],
+                              key=lambda p: (PERIODS + LEGACY_PERIODS).index(p)
+                              if p in (PERIODS + LEGACY_PERIODS) else 99)
+                       + (['No period set'] if any(p is None for p in periods) else []),
+        'passes':      Pass.query.filter(Pass.teacher_id == user_id).count(),
+        'checkins':    EmergencyCheckin.query.filter(
+                           EmergencyCheckin.teacher_id == user_id).count(),
+    }
+
+
+@main_bp.route('/admin/teachers/<int:user_id>/deactivate-confirm', methods=['POST'])
+@login_required
+@admin_required
+def deactivate_teacher_confirm(user_id):
+    user    = User.query.get(user_id)
+    blocker = _deactivation_blocker(user)
+    if blocker:
+        flash(blocker)
+        return redirect(url_for('main.admin'))
+    return render_template('confirm_deactivate_teacher.html',
+                           teacher=user, fp=_teacher_footprint(user.id))
+
+
+@main_bp.route('/admin/teachers/<int:user_id>/deactivate', methods=['POST'])
+@login_required
+@admin_required
+def deactivate_teacher(user_id):
+    user    = User.query.get(user_id)
+    blocker = _deactivation_blocker(user)
+    if blocker:
+        flash(blocker)
+        return redirect(url_for('main.admin'))
+
+    user.is_active = False
+    msg = f'{user.name} deactivated — they can no longer sign in.'
+
+    # Clearing the roster is opt-in and separate from revoking access, because
+    # it's the destructive half. Only the teacher/student LINK rows go; the
+    # students, their QR tokens and all pass history survive, exactly like the
+    # per-period "Clear this period" button on My Roster.
+    if request.form.get('clear_roster'):
+        removed = (TeacherStudent.query
+                   .filter(TeacherStudent.teacher_id == user.id)
+                   .delete(synchronize_session=False))
+        msg += (f' Removed {removed} roster entr{"ies" if removed != 1 else "y"} '
+                'from their classes (students and pass history kept).')
+
+    db.session.commit()
+    flash(msg)
+    return redirect(url_for('main.admin'))
+
+
+@main_bp.route('/admin/teachers/<int:user_id>/reactivate', methods=['POST'])
+@login_required
+@admin_required
+def reactivate_teacher(user_id):
+    user = User.query.get(user_id)
+    if user is None:
+        flash('That account no longer exists.')
+        return redirect(url_for('main.admin'))
+    if user.is_active:
+        flash(f'{user.name} is already active.')
+        return redirect(url_for('main.admin'))
+    user.is_active = True
+    db.session.commit()
+    # The allowlist is a separate gate, so say so rather than let the admin
+    # assume reactivating alone is enough to get them back in.
+    flash(f'{user.name} reactivated. They also need to be in ALLOWED_TEACHERS '
+          'on Railway to sign in. Any roster you cleared is not restored.')
     return redirect(url_for('main.admin'))
 
 

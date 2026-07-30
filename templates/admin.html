@@ -197,22 +197,49 @@
 {# ── Staff list / promote ── #}
 <div class="card mt-4 no-print">
   <div class="card-header fw-semibold">Staff Accounts</div>
-  <table class="table table-sm mb-0">
+  <p class="text-muted small px-3 pt-2 mb-1">
+    Accounts appear here after a teacher signs in for the first time. Deactivate anyone who
+    leaves — it revokes access and can clear their leftover roster, while keeping the pass
+    history they logged.
+  </p>
+  <table class="table table-sm mb-0 align-middle">
     <thead class="table-light">
-      <tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr>
+      <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr>
     </thead>
     <tbody>
       {% for u in all_users %}
-      <tr>
+      <tr {% if not u.is_active %}class="table-secondary text-muted"{% endif %}>
         <td>{{ u.name }}</td>
         <td>{{ u.email }}</td>
         <td><span class="badge {{ 'bg-warning text-dark' if u.role == 'admin' else 'bg-secondary' }}">{{ u.role }}</span></td>
         <td>
-          {% if u.role != 'admin' %}
-          <form method="POST" action="{{ url_for('main.promote', user_id=u.id) }}">
-            <button class="btn btn-xs btn-outline-warning btn-sm">Make admin</button>
-          </form>
+          {% if u.is_active %}
+          <span class="badge bg-success">active</span>
+          {% else %}
+          <span class="badge bg-dark">deactivated</span>
           {% endif %}
+        </td>
+        <td>
+          <div class="d-flex gap-2 justify-content-end">
+            {% if not u.is_active %}
+            <form method="POST" action="{{ url_for('main.reactivate_teacher', user_id=u.id) }}">
+              <button class="btn btn-sm btn-outline-success">Reactivate</button>
+            </form>
+            {% else %}
+              {% if u.role != 'admin' %}
+              <form method="POST" action="{{ url_for('main.promote', user_id=u.id) }}">
+                <button class="btn btn-sm btn-outline-warning">Make admin</button>
+              </form>
+              {% endif %}
+              {# Hidden for yourself and for the ADMIN_EMAIL account — the route
+                 refuses both, since that account is the only way to undo this. #}
+              {% if u.id != current_user.id and u.email|lower != admin_email %}
+              <form method="POST" action="{{ url_for('main.deactivate_teacher_confirm', user_id=u.id) }}">
+                <button class="btn btn-sm btn-outline-danger">Deactivate</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% endfor %}

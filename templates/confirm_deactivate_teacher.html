@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Deactivate {{ teacher.name }} — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-8">
+  <div class="card border-danger shadow">
+    <div class="card-header bg-danger text-white fw-bold">
+      ⚠️ Deactivate {{ teacher.name }}?
+    </div>
+    <div class="card-body">
+      <p class="mb-3">
+        <strong>{{ teacher.name }}</strong>
+        <span class="text-muted">({{ teacher.email }})</span>
+      </p>
+
+      <div class="alert alert-danger small mb-3">
+        <div class="fw-semibold mb-1">They lose access immediately:</div>
+        They can't sign in, and if they're signed in right now on a phone or laptop,
+        that session stops working on their next click.
+      </div>
+
+      <div class="alert alert-success small mb-3">
+        <div class="fw-semibold mb-1">Kept no matter what:</div>
+        <strong>{{ fp.passes }}</strong> pass record{{ 's' if fp.passes != 1 }} and
+        <strong>{{ fp.checkins }}</strong> emergency check-in{{ 's' if fp.checkins != 1 }}
+        they logged stay in the system — you may need to look those up later.
+        Their account row stays too, so you can reactivate them.
+      </div>
+
+      <form method="POST" action="{{ url_for('main.deactivate_teacher', user_id=teacher.id) }}">
+        {% if fp.roster_rows %}
+        <div class="border rounded p-3 mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="clear_roster"
+                   value="1" id="clear_roster" checked>
+            <label class="form-check-label" for="clear_roster">
+              <strong>Also clear their roster</strong>
+              — {{ fp.roster_rows }} entr{{ 'ies' if fp.roster_rows != 1 else 'y' }}
+              covering {{ fp.students }} student{{ 's' if fp.students != 1 }}
+            </label>
+          </div>
+          {% if fp.periods %}
+          <div class="text-muted small mt-2 ms-4">
+            Hours affected: {{ fp.periods | join(', ') }}
+          </div>
+          {% endif %}
+          <div class="text-muted small mt-2 ms-4">
+            This removes only the link between them and those students.
+            <strong>The students, their QR codes and all pass history are kept</strong> —
+            same as the “Clear this period” button on My Roster. Printed cards keep working.
+            <br>
+            Leave it checked to stop their name showing up next to current classes on a
+            student's Schedule. Untick it if you'd rather keep the record of who they taught.
+          </div>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-3">
+          They have no students on their roster, so there's nothing to clean up there.
+        </p>
+        {% endif %}
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-danger">Yes, deactivate {{ teacher.name }}</button>
+          <a href="{{ url_for('main.admin') }}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+
+      <p class="text-muted small mt-3 mb-0">
+        Reversible — you can reactivate them from the Staff Accounts list. A cleared roster is
+        not restored by reactivating, and they also need to be in <code>ALLOWED_TEACHERS</code>
+        on Railway to sign in again.
+      </p>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

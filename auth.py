@@ -67,6 +67,16 @@ def callback():
         return redirect(url_for('auth.login_page'))
 
     user = User.query.filter_by(google_id=userinfo['sub']).first()
+
+    # A deactivated account must not be able to sign back in, and must not be
+    # silently resurrected as a brand-new account either. Reactivating is an
+    # explicit admin action.
+    if user is not None and not user.is_active:
+        logout_user()
+        flash('That account has been deactivated. '
+              'If this is a mistake, ask Ms. Howe to reactivate it.')
+        return redirect(url_for('auth.login_page'))
+
     if not user:
         admin_email = os.environ.get('ADMIN_EMAIL', '').lower()
         role = 'admin' if userinfo['email'].lower() == admin_email else 'teacher'

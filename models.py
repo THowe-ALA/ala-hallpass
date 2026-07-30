@@ -5,12 +5,21 @@ from app import db
 
 
 class User(UserMixin, db.Model):
+    """A staff account. Deactivated instead of deleted when someone leaves.
+
+    `is_active` deliberately shadows UserMixin.is_active (which is hardcoded
+    True), so Flask-Login's own login_user() refuses an inactive account as
+    well. Deleting a departed teacher's row instead would orphan their pass
+    history and emergency check-ins, which are the records the school would
+    actually need to look back at.
+    """
     __tablename__ = 'users'
     id         = db.Column(db.Integer, primary_key=True)
     google_id  = db.Column(db.String(100), unique=True, nullable=False)
     email      = db.Column(db.String(200), unique=True, nullable=False)
     name       = db.Column(db.String(200), nullable=False)
     role       = db.Column(db.String(20), default='teacher')  # 'teacher' | 'admin'
+    is_active  = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
