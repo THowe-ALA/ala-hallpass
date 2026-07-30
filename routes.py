@@ -817,14 +817,30 @@ def remove_period_from_roster():
     return redirect(url_for('main.students'))
 
 
-def _print_roster(period_arg):
-    # Admin with no period filter gets the full-school sheet;
-    # otherwise filter to the current teacher's roster (optionally by period).
-    if current_user.role == 'admin' and not period_arg:
+def _print_teacher(teacher_arg):
+    """Resolve ?teacher=<id> on the print pages into a User, or None.
+
+    Admin-only: a regular teacher who passes the param (or edits the URL) still
+    gets their own roster, never someone else's.
+    """
+    if current_user.role != 'admin' or not teacher_arg:
+        return None
+    try:
+        return User.query.get(int(teacher_arg))
+    except (TypeError, ValueError):
+        return None
+
+
+def _print_roster(period_arg, teacher=None):
+    # An admin printing for a specific teacher (?teacher=<id>) gets that teacher's
+    # roster — all their hours when no period is given. An admin with neither
+    # gets the full-school sheet. Everyone else gets their own roster.
+    if teacher is None and current_user.role == 'admin' and not period_arg:
         return Student.query.order_by(Student.last_name, Student.first_name).all()
+    teacher_id = teacher.id if teacher else current_user.id
     q = (db.session.query(Student)
          .join(TeacherStudent, Student.id == TeacherStudent.student_id)
-         .filter(TeacherStudent.teacher_id == current_user.id))
+         .filter(TeacherStudent.teacher_id == teacher_id))
     q = _apply_period_filter(q, period_arg)
     # distinct(): without it a student in two of this teacher's periods gets two
     # identical QR cards on the same print sheet.
@@ -835,20 +851,22 @@ def _print_roster(period_arg):
 @login_required
 def print_cards():
     period_arg = request.args.get('period') or None
-    roster   = _print_roster(period_arg)
+    teacher  = _print_teacher(request.args.get('teacher'))
+    roster   = _print_roster(period_arg, teacher)
     base_url = os.environ.get('BASE_URL', request.host_url.rstrip('/'))
     return render_template('print_cards.html', roster=roster, base_url=base_url,
-                           filter_period=period_arg)
+                           filter_period=period_arg, for_teacher=teacher)
 
 
 @main_bp.route('/print/stickers')
 @login_required
 def print_stickers():
     period_arg = request.args.get('period') or None
-    roster   = _print_roster(period_arg)
+    teacher  = _print_teacher(request.args.get('teacher'))
+    roster   = _print_roster(period_arg, teacher)
     base_url = os.environ.get('BASE_URL', request.host_url.rstrip('/'))
     return render_template('print_stickers.html', roster=roster, base_url=base_url,
-                           filter_period=period_arg)
+                           filter_period=period_arg, for_teacher=teacher)
 
 
 @main_bp.route('/admin')
@@ -926,6 +944,34 @@ def assign_roster():
         return redirect(url_for('main.assign_roster'))
     return render_template('assign_roster.html', teachers=teachers, periods=PERIODS,
                            results=results, assigned_teacher=teacher)
+
+
+@main_bp.route('/admin/print-rosters')
+@login_required
+@admin_required
+def print_by_teacher():
+    """Pick any teacher + hour and print their QR cards / ID stickers.
+
+    Reuses _period_chips_for_teacher so the hours listed here are exactly the
+    ones that teacher actually has students in (legacy labels included).
+    """
+    from sqlalchemy import func
+    # DISTINCT student_id, not a row count: a student in two of this teacher's
+    # hours has two roster rows but only prints one card, and this number sits
+    # next to the "All hours" print button.
+    totals = dict(db.session.query(TeacherStudent.teacher_id,
+                                   func.count(func.distinct(TeacherStudent.student_id)))
+                  .group_by(TeacherStudent.teacher_id).all())
+    rows = []
+    for t in User.query.order_by(User.name).all():
+        chips = _period_chips_for_teacher(t.id)
+        rows.append({
+            'teacher': t,
+            'total':   totals.get(t.id, 0),
+            # chips[0] is the "All" entry; the rest are real periods (+ Unassigned).
+            'periods': chips[1:],
+        })
+    return render_template('print_by_teacher.html', rows=rows)
 
 
 @main_bp.route('/admin/hallway_max', methods=['POST'])

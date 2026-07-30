@@ -29,18 +29,30 @@
 <div class="d-flex justify-content-between align-items-center mb-2 no-print">
   <h4 class="mb-0">
     Print ID Stickers
-    {% if filter_period %}<span class="text-muted fs-6">— {{ filter_period }} only</span>{% endif %}
+    {% if for_teacher or filter_period %}
+    <span class="text-muted fs-6">—
+      {% if for_teacher %}{{ for_teacher.name }}{% endif %}
+      {% if for_teacher and filter_period %}·{% endif %}
+      {% if filter_period %}{{ filter_period }}{% endif %}
+      {% if not for_teacher %}only{% endif %}
+    </span>
+    {% endif %}
   </h4>
   <div class="d-flex gap-2">
-    <a href="{{ url_for('main.print_cards', period=filter_period) }}" class="btn btn-outline-secondary">🪪 Lanyard cards instead</a>
+    <a href="{{ url_for('main.print_cards', period=filter_period, teacher=for_teacher.id if for_teacher else None) }}" class="btn btn-outline-secondary">🪪 Lanyard cards instead</a>
     <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>
   </div>
 </div>
 <p class="text-muted small mb-3 no-print">
   4-column grid (~32 per page). Print on sticker paper and cut to size, or trim and tape onto student IDs.
   Wait for all QR codes to load before printing.
-  {% if filter_period %}
+  {% if filter_period and for_teacher %}
+  <a href="{{ url_for('main.print_stickers', teacher=for_teacher.id) }}" class="ms-2">Print all of {{ for_teacher.name }}'s hours instead</a>
+  {% elif filter_period %}
   <a href="{{ url_for('main.print_stickers') }}" class="ms-2">Print full roster instead</a>
+  {% endif %}
+  {% if for_teacher %}
+  <a href="{{ url_for('main.print_by_teacher') }}" class="ms-2">← Pick a different teacher/hour</a>
   {% endif %}
 </p>
 
@@ -54,7 +66,10 @@
     <div class="sticker-grade">Gr {{ s.grade }}</div>
   </div>
 {% else %}
-  <p class="text-muted">No students on your roster yet.</p>
+  <p class="text-muted">
+    {% if for_teacher %}No students on {{ for_teacher.name }}'s roster for this selection.
+    {% else %}No students on your roster yet.{% endif %}
+  </p>
 {% endfor %}
 </div>
 {% endblock %}

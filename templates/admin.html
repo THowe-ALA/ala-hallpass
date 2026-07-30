@@ -182,6 +182,18 @@
   </div>
 </div>
 
+{# ── Print any teacher's cards ── #}
+<div class="card mt-4 no-print">
+  <div class="card-header fw-semibold">Print Cards for Another Teacher</div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">
+      Print QR cards or ID stickers for any teacher's class — one hour at a time, or all their
+      hours at once.
+    </p>
+    <a href="{{ url_for('main.print_by_teacher') }}" class="btn btn-sm btn-primary">Print by Teacher →</a>
+  </div>
+</div>
+
 {# ── Staff list / promote ── #}
 <div class="card mt-4 no-print">
   <div class="card-header fw-semibold">Staff Accounts</div>

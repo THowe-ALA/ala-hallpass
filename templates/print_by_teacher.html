@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Print by Teacher — ALA Hall Pass{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h4 class="mb-0">Print Cards by Teacher</h4>
+  <a href="{{ url_for('main.admin') }}" class="btn btn-sm btn-outline-secondary">← Admin</a>
+</div>
+<p class="text-muted small mb-3">
+  Pick a teacher, then an hour — or “All hours” for their whole roster on one sheet.
+  A student in two of that teacher's classes only prints once per sheet.
+</p>
+
+{% for r in rows %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">{{ r.teacher.name }}</span>
+    <span class="text-muted small">{{ r.total }} student{{ '' if r.total == 1 else 's' }}</span>
+  </div>
+  <div class="card-body py-2">
+    {% if r.total == 0 %}
+      <span class="text-muted small">No roster loaded yet.</span>
+    {% else %}
+    <table class="table table-sm align-middle mb-0">
+      <tbody>
+        <tr>
+          <td class="fw-semibold">All hours</td>
+          <td class="text-muted small">{{ r.total }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('main.print_cards', teacher=r.teacher.id) }}"
+               class="btn btn-sm btn-primary">🖨 Cards</a>
+            <a href="{{ url_for('main.print_stickers', teacher=r.teacher.id) }}"
+               class="btn btn-sm btn-outline-secondary">🏷 Stickers</a>
+          </td>
+        </tr>
+        {% for value, label, count in r.periods %}
+        <tr>
+          <td>{{ label }}</td>
+          <td class="text-muted small">{{ count }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('main.print_cards', teacher=r.teacher.id, period=value) }}"
+               class="btn btn-sm btn-outline-primary">🖨 Cards</a>
+            <a href="{{ url_for('main.print_stickers', teacher=r.teacher.id, period=value) }}"
+               class="btn btn-sm btn-outline-secondary">🏷 Stickers</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
